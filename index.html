@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0f0e17">
+  <meta name="description" content="毎日の習慣を管理するハビットトラッカーアプリ">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="HabitFlow">
+  <title>HabitFlow - 習慣トラッカー</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- スプラッシュスクリーン -->
+  <div id="splash-screen" class="splash-screen">
+    <div class="splash-logo">
+      <div class="splash-icon">🌟</div>
+      <h1>HabitFlow</h1>
+      <p>習慣を、流れるように</p>
+    </div>
+    <div class="splash-loader">
+      <div class="splash-loader-bar"></div>
+    </div>
+  </div>
+
+  <!-- メインアプリ -->
+  <div id="app" class="app hidden">
+
+    <!-- タブコンテンツエリア -->
+    <div class="tab-content">
+
+      <!-- ===== 今日タブ ===== -->
+      <div id="tab-today" class="tab-pane active">
+        <div class="page-header">
+          <div class="header-top">
+            <div>
+              <p class="header-subtitle" id="date-display"></p>
+              <h2 class="header-title">今日の習慣</h2>
+            </div>
+            <div class="progress-circle-container" id="progress-circle-container">
+              <svg class="progress-circle" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#7c3aed"/>
+                    <stop offset="100%" stop-color="#06b6d4"/>
+                  </linearGradient>
+                </defs>
+                <path class="progress-circle-bg"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                <path class="progress-circle-fill" id="progress-circle-fill"
+                  stroke-dasharray="0, 100"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+              </svg>
+              <span class="progress-text" id="progress-text">0%</span>
+            </div>
+          </div>
+          <!-- 週間ミニカレンダー -->
+          <div class="week-calendar" id="week-calendar"></div>
+        </div>
+
+        <div class="content-area">
+          <!-- 空の状態 -->
+          <div id="empty-state" class="empty-state hidden">
+            <div class="empty-icon">🌱</div>
+            <h3>習慣がまだありません</h3>
+            <p>＋ボタンを押して<br>最初の習慣を追加しましょう！</p>
+          </div>
+
+          <!-- 習慣リスト -->
+          <div id="habits-list" class="habits-list"></div>
+
+            <!-- 全完了祝福バナー -->
+          <div id="completion-banner" class="completion-banner hidden">
+            <div class="completion-emoji">🎉</div>
+            <h3>素晴らしい！</h3>
+            <p>今日の習慣をすべて完了しました！</p>
+          </div>
+
+          <!-- 健康記録 -->
+          <div class="health-metrics-card">
+            <h3 class="metrics-title"><span class="emoji">📝</span>今日の健康記録</h3>
+            <div class="metrics-grid">
+              <div class="metric-input-group">
+                <label for="metric-intake">摂取カロリー</label>
+                <div class="input-with-unit">
+                  <input type="number" id="metric-intake" class="metric-input" placeholder="0" min="0" step="10">
+                  <span class="metric-unit">kcal</span>
+                </div>
+              </div>
+              <div class="metric-input-group">
+                <label for="metric-burned">消費カロリー</label>
+                <div class="input-with-unit">
+                  <input type="number" id="metric-burned" class="metric-input" placeholder="0" min="0" step="10">
+                  <span class="metric-unit">kcal</span>
+                </div>
+              </div>
+              <div class="metric-input-group">
+                <label for="metric-weight">体重</label>
+                <div class="input-with-unit">
+                  <input type="number" id="metric-weight" class="metric-input" placeholder="0.0" min="0" step="0.1">
+                  <span class="metric-unit">kg</span>
+                </div>
+              </div>
+            </div>
+            <p class="metrics-hint">※入力すると自動保存されます</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 統計タブ ===== -->
+      <div id="tab-stats" class="tab-pane">
+        <div class="page-header">
+          <h2 class="header-title">統計</h2>
+        </div>
+        <div class="content-area">
+          <!-- サマリーカード -->
+          <div class="stats-summary">
+            <div class="stat-card">
+              <span class="stat-icon">🔥</span>
+              <span class="stat-value" id="stat-best-streak">0</span>
+              <span class="stat-label">最長ストリーク</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-icon">📊</span>
+              <span class="stat-value" id="stat-completion-rate">0%</span>
+              <span class="stat-label">今週の達成率</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-icon">✅</span>
+              <span class="stat-value" id="stat-total-completions">0</span>
+              <span class="stat-label">総完了数</span>
+            </div>
+          </div>
+
+          <!-- 健康記録推移グラフ -->
+          <h3 class="section-title">健康記録推移（過去7日間）</h3>
+          <div class="health-chart-container">
+            <canvas id="health-chart"></canvas>
+          </div>
+
+          <!-- 習慣別ストリーク -->
+          <h3 class="section-title">習慣別ストリーク</h3>
+          <div id="habit-streaks" class="habit-streaks"></div>
+
+          <!-- 月間ヒートマップ -->
+          <h3 class="section-title">月間達成カレンダー</h3>
+          <div id="monthly-heatmap" class="monthly-heatmap"></div>
+        </div>
+      </div>
+
+      <!-- ===== 履歴タブ ===== -->
+      <div id="tab-history" class="tab-pane">
+        <div class="page-header">
+          <h2 class="header-title">履歴</h2>
+        </div>
+        <div class="content-area">
+          <div id="history-content" class="history-content"></div>
+        </div>
+      </div>
+
+      <!-- ===== 設定タブ ===== -->
+      <div id="tab-settings" class="tab-pane">
+        <div class="page-header">
+          <h2 class="header-title">設定</h2>
+        </div>
+        <div class="content-area">
+          <div class="settings-list">
+            <!-- 通知設定セクション -->
+            <div class="settings-section">
+              <h3 class="settings-section-title">通知・リマインダー</h3>
+              <button class="settings-item" id="btn-notification-permission">
+                <span class="settings-item-icon">🔔</span>
+                <div class="settings-item-label">
+                  <span>プッシュ通知</span>
+                  <span class="settings-item-sub" id="notification-status-sub">タップして通知を有効にする</span>
+                </div>
+                <span class="notification-badge" id="notification-status-badge">未設定</span>
+              </button>
+              <div class="settings-item static notification-hint">
+                <span class="settings-item-icon">💡</span>
+                <div class="tip-content">
+                  <span class="tip-title">通知を許可したあと</span>
+                  <span class="tip-desc">習慣の編集でリマインダーをONにしてください</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <h3 class="settings-section-title">データ管理</h3>
+              <button class="settings-item" id="btn-export">
+                <span class="settings-item-icon">📤</span>
+                <span class="settings-item-label">データをエクスポート</span>
+                <span class="settings-item-arrow">›</span>
+              </button>
+              <button class="settings-item" id="btn-import">
+                <span class="settings-item-icon">📥</span>
+                <span class="settings-item-label">データをインポート</span>
+                <span class="settings-item-arrow">›</span>
+              </button>
+              <button class="settings-item danger" id="btn-clear">
+                <span class="settings-item-icon">🗑️</span>
+                <span class="settings-item-label">全データを削除</span>
+                <span class="settings-item-arrow">›</span>
+              </button>
+            </div>
+
+            <div class="settings-section">
+              <h3 class="settings-section-title">ヒント</h3>
+              <div class="settings-item static tip-card">
+                <span class="settings-item-icon">💡</span>
+                <div class="tip-content">
+                  <span class="tip-title">習慣カードを長押し</span>
+                  <span class="tip-desc">編集・削除メニューが開きます</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- PWAインストールセクション（インストール可能な場合のみ表示） -->
+            <div class="settings-section" id="pwa-install-section" style="display:none">
+              <h3 class="settings-section-title">インストール</h3>
+              <button class="settings-item primary-action" id="btn-install-pwa">
+                <span class="settings-item-icon">⬇️</span>
+                <span class="settings-item-label">ホーム画面に追加</span>
+                <span class="settings-item-arrow">›</span>
+              </button>
+            </div>
+
+            <div class="settings-section">
+              <h3 class="settings-section-title">アプリについて</h3>
+              <div class="settings-item static">
+                <span class="settings-item-icon">📱</span>
+                <div class="settings-item-label">
+                  <span>HabitFlow</span>
+                  <span class="settings-item-sub">バージョン 1.0.0</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <!-- /tab-content -->
+
+    <!-- FABボタン（習慣追加） -->
+    <button id="fab-btn" class="fab-btn" aria-label="習慣を追加">
+      <span class="fab-icon">+</span>
+    </button>
+
+    <!-- ボトムナビゲーション -->
+    <nav class="bottom-nav" role="navigation" aria-label="メインナビゲーション">
+      <button class="nav-item active" data-tab="today" id="nav-today" aria-label="今日">
+        <span class="nav-icon">☀️</span>
+        <span class="nav-label">今日</span>
+      </button>
+      <button class="nav-item" data-tab="stats" id="nav-stats" aria-label="統計">
+        <span class="nav-icon">📊</span>
+        <span class="nav-label">統計</span>
+      </button>
+      <!-- FABのスペーサー -->
+      <div class="nav-spacer"></div>
+      <button class="nav-item" data-tab="history" id="nav-history" aria-label="履歴">
+        <span class="nav-icon">🗓️</span>
+        <span class="nav-label">履歴</span>
+      </button>
+      <button class="nav-item" data-tab="settings" id="nav-settings" aria-label="設定">
+        <span class="nav-icon">⚙️</span>
+        <span class="nav-label">設定</span>
+      </button>
+    </nav>
+
+  </div>
+  <!-- /app -->
+
+  <!-- ===== 習慣追加・編集モーダル ===== -->
+  <div id="habit-modal" class="modal hidden" role="dialog" aria-labelledby="modal-title-text" aria-modal="true">
+    <div class="modal-overlay" id="modal-overlay"></div>
+    <div class="modal-sheet">
+      <div class="modal-header">
+        <button class="modal-close" id="modal-close" aria-label="閉じる">✕</button>
+        <h3 id="modal-title-text">習慣を追加</h3>
+        <button class="modal-save" id="modal-save">保存</button>
+      </div>
+      <div class="modal-body">
+        <!-- アイコン選択 -->
+        <div class="form-group">
+          <label class="form-label">アイコン</label>
+          <div class="selected-icon-row">
+            <button class="selected-icon" id="selected-icon-btn" aria-label="選択中のアイコン">😊</button>
+            <span class="selected-icon-hint">タップしてアイコンを変更</span>
+          </div>
+          <div class="icon-grid" id="icon-grid"></div>
+        </div>
+
+        <!-- 習慣名入力 -->
+        <div class="form-group">
+          <label class="form-label" for="habit-name-input">習慣の名前</label>
+          <input type="text" id="habit-name-input" class="form-input"
+            placeholder="例：朝のランニング" maxlength="30" autocomplete="off">
+        </div>
+
+        <!-- カテゴリ選択 -->
+        <div class="form-group">
+          <label class="form-label">カテゴリ</label>
+          <div class="category-picker" id="category-picker"></div>
+        </div>
+
+        <!-- カラー選択 -->
+        <div class="form-group">
+          <label class="form-label">カラー</label>
+          <div class="color-picker" id="color-picker"></div>
+        </div>
+
+        <!-- リマインダー設定 -->
+        <div class="form-group">
+          <label class="form-label">リマインダー</label>
+          <div class="reminder-row">
+            <label class="toggle-switch" aria-label="リマインダーを有効にする">
+              <input type="checkbox" id="reminder-toggle">
+              <span class="toggle-slider"></span>
+            </label>
+            <input type="time" id="reminder-time" class="form-input time-input"
+              value="08:00" disabled aria-label="リマインダー時刻">
+          </div>
+        </div>
+
+        <!-- 削除ボタン（編集時のみ表示） -->
+        <div id="delete-habit-row" class="delete-habit-row hidden">
+          <button class="btn-delete-habit" id="btn-delete-habit">
+            🗑️ この習慣を削除する
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 確認ダイアログ ===== -->
+  <div id="confirm-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-overlay" id="confirm-overlay"></div>
+    <div class="modal-sheet confirm-sheet">
+      <div class="confirm-icon" id="confirm-icon">⚠️</div>
+      <h3 id="confirm-title">確認</h3>
+      <p id="confirm-message">この操作を実行しますか？</p>
+      <div class="confirm-buttons">
+        <button class="btn-cancel" id="confirm-cancel">キャンセル</button>
+        <button class="btn-danger" id="confirm-ok">削除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== トースト通知コンテナ ===== -->
+  <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- インポート用ファイル入力（非表示） -->
+  <input type="file" id="import-input" accept=".json" style="display:none" aria-hidden="true">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
