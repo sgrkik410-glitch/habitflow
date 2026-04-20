@@ -2012,14 +2012,162 @@ input:checked + .toggle-slider::after {
   height: 250px;
 }
 
+/* ===========================
+   35. ユーザープロファイル (XPバー)
+   =========================== */
+.user-profile-bar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 48px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--surface-border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  z-index: 50;
+}
+.user-level {
+  font-size: 13px;
+  font-weight: 800;
+  background: var(--gradient-warm);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.xp-bar-container {
+  flex: 1;
+  height: 14px;
+  background: var(--surface-hover);
+  border-radius: var(--radius-full);
+  position: relative;
+  overflow: hidden;
+}
+.xp-bar-fill {
+  height: 100%;
+  background: var(--gradient-primary);
+  border-radius: var(--radius-full);
+  transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.xp-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+/* レベルアップ演出 */
+.level-up-overlay {
+  position: fixed; inset: 0; z-index: 2000;
+  background: rgba(0,0,0,0.8);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity 0.3s;
+}
+.level-up-content {
+  text-align: center;
+  animation: bounce-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.level-up-icon { font-size: 72px; margin-bottom: 16px; animation: spin-bounce 1s; }
+.level-up-content h2 { font-size: 32px; color: var(--accent-light); margin-bottom: 8px; font-weight: 800; }
+.level-up-content p { font-size: 18px; color: #fff; font-weight: 600; }
+
+/* ===========================
+   36. 目標タイプピッカー
+   =========================== */
+.goal-type-picker {
+  display: flex; gap: 8px;
+}
+.goal-type-btn {
+  flex: 1;
+  padding: 10px 4px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1.5px solid var(--surface-border);
+  font-size: 12px; font-weight: 600; color: var(--text-secondary);
+  transition: all var(--transition-fast);
+}
+.goal-type-btn.selected {
+  background: rgba(124, 58, 237, 0.2);
+  border-color: var(--primary);
+  color: var(--primary-light);
+}
+.goal-val-input-wrap {
+  display: flex; align-items: center; gap: 8px;
+}
+.goal-val-input-wrap input { flex: 1; }
+.goal-val-unit { font-size: 14px; color: var(--text-muted); font-weight: 600; }
+
+/* ===========================
+   37. カウント・タイマー対応
+   =========================== */
+.habit-check-inner {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.habit-card.completed .habit-check-inner {
+  color: #fff;
+}
+
+/* メモアイコン・テキスト（履歴タブ） */
+.history-memo {
+  font-size: 12px;
+  color: var(--text-muted);
+  width: 100%;
+  padding-left: 28px;
+  margin-top: 4px;
+  display: block;
+}
+
+/* ===========================
+   38. タイマーフルスクリーン
+   =========================== */
+.timer-full-screen {
+  position: absolute; inset: 0; background: var(--bg-primary);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 600;
+}
+.timer-close-btn {
+  position: absolute; top: 24px; left: 24px;
+  font-size: 32px; color: var(--text-secondary); background: none; border: none;
+}
+.timer-habit-info { text-align: center; margin-bottom: 40px; }
+.timer-icon { font-size: 56px; margin-bottom: 12px; }
+.timer-habit-info h2 { font-size: 24px; font-weight: 700; color: #f1f0f8; }
+.timer-circle-container {
+  width: 280px; height: 280px; position: relative; margin-bottom: 48px;
+}
+.timer-circle { width: 100%; height: 100%; transform: rotate(-90deg); filter: drop-shadow(0 0 10px rgba(124, 58, 237, 0.5)); }
+.timer-circle-bg { fill: none; stroke: var(--surface-border); stroke-width: 4; }
+.timer-circle-fill { fill: none; stroke: var(--primary); stroke-width: 4; stroke-linecap: round; transition: stroke-dasharray 1s linear; }
+.timer-display {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 52px; font-weight: 300; font-variant-numeric: tabular-nums;
+  color: var(--primary-light);
+}
+.timer-controls { display: flex; gap: 16px; width: 100%; max-width: 300px; padding: 0 24px; }
+.timer-btn {
+  flex: 1; padding: 16px; border-radius: var(--radius-full); font-size: 16px; font-weight: 700; transition: transform var(--transition-fast);
+  border: none;
+}
+.timer-btn.primary { background: var(--gradient-primary); color: #fff; box-shadow: var(--shadow-primary); }
+.timer-btn.secondary { background: var(--surface-hover); color: var(--text-primary); border: 1px solid var(--surface-border); }
+.timer-btn:active { transform: scale(0.95); }
+
 /* ==========================
-   35. デスクトップ対応
+   39. デスクトップ対応
    ========================== */
 @media (min-width: 480px) {
   body {
     background: #080710;
   }
-
   .app {
     box-shadow: 0 0 80px rgba(124, 58, 237, 0.15);
     border: 1px solid var(--surface-border);

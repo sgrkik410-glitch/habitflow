@@ -31,11 +31,29 @@
     </div>
   </div>
 
+  <!-- レベルアップ演出用オーバーレイ -->
+  <div id="level-up-overlay" class="level-up-overlay hidden">
+    <div class="level-up-content">
+      <div class="level-up-icon">🎉</div>
+      <h2>LEVEL UP!</h2>
+      <p id="level-up-text">Lv. 2 にあがった！</p>
+    </div>
+  </div>
+
+  <!-- トップXPバー -->
+  <div id="user-profile-bar" class="user-profile-bar">
+    <div class="user-level" id="user-level-badge">Lv. 1</div>
+    <div class="xp-bar-container">
+      <div class="xp-bar-fill" id="xp-bar-fill" style="width: 0%;"></div>
+      <span class="xp-text" id="xp-text">0 / 100 XP</span>
+    </div>
+  </div>
+
   <!-- メインアプリ -->
   <div id="app" class="app hidden">
-
+    
     <!-- タブコンテンツエリア -->
-    <div class="tab-content">
+    <div class="tab-content" style="padding-top: 48px;">
 
       <!-- ===== 今日タブ ===== -->
       <div id="tab-today" class="tab-pane active">
@@ -306,6 +324,25 @@
           <div class="icon-grid" id="icon-grid"></div>
         </div>
 
+        <!-- 目標のタイプ選択 -->
+        <div class="form-group">
+          <label class="form-label">目標のタイプ</label>
+          <div class="goal-type-picker" id="goal-type-picker">
+            <button class="goal-type-btn selected" data-type="check">1回（普通）</button>
+            <button class="goal-type-btn" data-type="count">回数</button>
+            <button class="goal-type-btn" data-type="timer">時間（タイマー）</button>
+          </div>
+        </div>
+
+        <!-- 目標の数値入力（回数・時間用） -->
+        <div class="form-group hidden" id="goal-value-group">
+          <label class="form-label" id="goal-value-label">目標回数</label>
+          <div class="goal-val-input-wrap">
+            <input type="number" id="goal-value-input" class="form-input" min="1" max="999" value="1">
+            <span class="goal-val-unit" id="goal-value-unit">回</span>
+          </div>
+        </div>
+
         <!-- 習慣名入力 -->
         <div class="form-group">
           <label class="form-label" for="habit-name-input">習慣の名前</label>
@@ -369,8 +406,51 @@
     </div>
   </div>
 
+  <!-- ===========================
+       メモ入力モーダル
+       =========================== -->
+  <div id="memo-modal" class="modal hidden">
+    <div class="modal-overlay" id="memo-overlay"></div>
+    <div class="modal-sheet" style="max-height: 70vh;">
+      <div class="modal-header">
+        <h3 id="memo-habit-name">ひとことメモ</h3>
+        <button class="modal-close" id="memo-close">×</button>
+      </div>
+      <div class="modal-body">
+        <textarea id="memo-input" class="form-input" rows="4" placeholder="今日の感想や記録を残そう..." style="resize: none;"></textarea>
+        <button class="modal-save" id="memo-save" style="margin-top: 16px; width: 100%;">メモを保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================
+       タイマー（ポモドーロ）モーダル
+       =========================== -->
+  <div id="timer-modal" class="modal hidden" style="z-index: 600;">
+    <div class="timer-full-screen" id="timer-fullscreen-bg">
+      <button class="timer-close-btn" id="timer-close-btn">×</button>
+      <div class="timer-habit-info">
+        <div class="timer-icon" id="timer-icon">⏱️</div>
+        <h2 id="timer-habit-name">タイマー</h2>
+      </div>
+      
+      <div class="timer-circle-container">
+        <svg class="timer-circle" viewBox="0 0 100 100">
+          <path class="timer-circle-bg" d="M50 5 a 45 45 0 0 1 0 90 a 45 45 0 0 1 0 -90" />
+          <path class="timer-circle-fill" id="timer-circle-fill" stroke-dasharray="283, 283" d="M50 5 a 45 45 0 0 1 0 90 a 45 45 0 0 1 0 -90" />
+        </svg>
+        <div class="timer-display" id="timer-display">25:00</div>
+      </div>
+      
+      <div class="timer-controls">
+        <button class="timer-btn primary" id="timer-start-btn">スタート</button>
+        <button class="timer-btn secondary" id="timer-stop-btn">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== 確認ダイアログ ===== -->
-  <div id="confirm-modal" class="modal hidden" role="dialog" aria-modal="true">
+  <div id="confirm-modal" class="modal hidden" style="z-index: 700;" role="dialog" aria-modal="true">
     <div class="modal-overlay" id="confirm-overlay"></div>
     <div class="modal-sheet confirm-sheet">
       <div class="confirm-icon" id="confirm-icon">⚠️</div>

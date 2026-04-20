@@ -55,10 +55,15 @@ let selectedIcon = '😊';
 let selectedColor = COLORS[0];
 let selectedCategory = CATEGORIES[0];
 let selectedFrequency = [0, 1, 2, 3, 4, 5, 6];
+let selectedGoalType = 'check';
+let selectedGoalValue = 1;
 let heatmapYear = new Date().getFullYear();
 let heatmapMonth = new Date().getMonth();
 let deferredInstallPrompt = null;
 let healthChart = null; // Chart.jsのインスタンスを保持
+
+// XP・タイマープロパティ
+let activeTimerInfo = null;
 
 // 通知・リマインダー管理
 let reminderCheckInterval = null;
@@ -129,8 +134,50 @@ function formatDateJa(dateStr) {
 }
 
 // ===============================
-// データ管理（localStorage）
+// データ管理とXP計算
 // ===============================
+
+/**
+ * XPを加算しUIとレベルを更新する
+ */
+function addXp(amount) {
+  if (!settings.userProfile) settings.userProfile = { level: 1, xp: 0 };
+  settings.userProfile.xp += amount;
+  
+  let requiredXp = settings.userProfile.level * 100;
+  let leveledUp = false;
+  
+  while (settings.userProfile.xp >= requiredXp) {
+    settings.userProfile.xp -= requiredXp;
+    settings.userProfile.level++;
+    requiredXp = settings.userProfile.level * 100;
+    leveledUp = true;
+  }
+  
+  saveSettings();
+  renderUserProfile();
+  
+  if (leveledUp) {
+    showLevelUpAnimation(settings.userProfile.level);
+  }
+}
+
+/**
+ * 習慣の今日の進捗状況を取得する
+ */
+function getHabitProgress(habit, dateStr) {
+  const val = habit.completions && habit.completions[dateStr];
+  if (!val) return { done: false, count: 0 };
+  if (val === true) return { done: true, count: 1 };
+  
+  if (habit.goalType === 'count') {
+    const c = Number(val);
+    const target = Number(habit.goalValue) || 1;
+    return { done: c >= target, count: c, target };
+  }
+  
+  return { done: !!val, count: val ? 1 : 0 };
+}
 
 /**
  * 習慣データをlocalStorageに保存する
@@ -171,9 +218,11 @@ function loadSettings() {
   try {
     const data = localStorage.getItem(STORAGE_KEY_SETTINGS);
     settings = data ? JSON.parse(data) : {};
+    if (!settings.userProfile) settings.userProfile = { level: 1, xp: 0 };
   } catch (e) {
-    settings = {};
+    settings = { userProfile: { level: 1, xp: 0 } };
   }
+  renderUserProfile();
 }
 
 /**
@@ -212,7 +261,7 @@ function getCurrentStreak(habit) {
     d.setDate(today.getDate() - i);
     const dateStr = getDateString(d);
     
-    const isCompleted = habit.completions && habit.completions[dateStr];
+    const isCompleted = getHabitProgress(habit, dateStr).done;
     
     if (isCompleted) {
       streak++;
@@ -240,7 +289,7 @@ function getBestStreak(habit) {
     d.setDate(today.getDate() - i);
     const dateStr = getDateString(d);
     
-    const isCompleted = habit.completions && habit.completions[dateStr];
+    const isCompleted = getHabitProgress(habit, dateStr).done;
     const isDue = isHabitDueOnDate(habit, d);
     
     if (isCompleted) {
@@ -263,7 +312,7 @@ function getCompletionRate(habit, days = 7) {
   for (let i = 0; i < days; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
-    if (habit.completions[getDateString(d)]) completed++;
+    if (getHabitProgress(habit, getDateString(d)).done) completed++;
   }
   return Math.round((completed / days) * 100);
 }
@@ -282,7 +331,11 @@ function getOverallBestStreak() {
 function getTotalCompletions() {
   return habits.reduce((sum, h) => {
     if (!h.completions) return sum;
-    return sum + Object.values(h.completions).filter(Boolean).length;
+    let count = 0;
+    Object.keys(h.completions).forEach(d => {
+      if (getHabitProgress(h, d).done) count++;
+    });
+    return sum + count;
   }, 0);
 }
 
@@ -312,7 +365,10 @@ function createHabit(data) {
     reminderEnabled: data.reminderEnabled || false,
     reminderTime: data.reminderTime || '08:00',
     frequency: data.frequency || [0, 1, 2, 3, 4, 5, 6],
+    goalType: data.goalType || 'check',
+    goalValue: data.goalValue || 1,
     skips: {},
+    memos: {},
     createdAt: new Date().toISOString(),
     completions: {},
   };
@@ -390,7 +446,7 @@ function renderProgress() {
   
   const activeHabits = habits.filter(h => isHabitDueOnDate(h, todayDate));
   const total = activeHabits.length;
-  const completed = activeHabits.filter(h => h.completions && h.completions[todayStr]).length;
+  const completed = activeHabits.filter(h => getHabitProgress(h, todayStr).done).length;
   const pct = total === 0 ? 0 : Math.round((completed / total) * 100);
 
   const fill = document.getElementById('progress-circle-fill');
@@ -428,7 +484,7 @@ function renderWeekCalendar() {
     // その日の完了状況を計算
     const dayActiveHabits = habits.filter(h => isHabitDueOnDate(h, date));
     const total = dayActiveHabits.length;
-    const completed = dayActiveHabits.filter(h => h.completions && h.completions[dateStr]).length;
+    const completed = dayActiveHabits.filter(h => getHabitProgress(h, dateStr).done).length;
     const isDone = total > 0 && completed === total;
     const isPartial = total > 0 && completed > 0 && completed < total;
 
@@ -451,12 +507,13 @@ function renderWeekCalendar() {
  */
 function renderHabitCard(habit, animIndex = 0, isSkipped = false) {
   const today = getDateString();
-  const isCompleted = !!(habit.completions && habit.completions[today]);
+  const prog = getHabitProgress(habit, today);
+  const isCompleted = prog.done;
   const streak = getCurrentStreak(habit);
   const last7 = getLast7Days();
 
   const weekDotsHtml = last7.map(d => {
-    const done = habit.completions && habit.completions[d];
+    const done = getHabitProgress(habit, d).done;
     const due = isHabitDueOnDate(habit, new Date(d + 'T00:00:00'));
     let dotStyle = done ? `background:${habit.color}` : '';
     let dotClass = 'habit-week-dot';
@@ -469,16 +526,26 @@ function renderHabitCard(habit, animIndex = 0, isSkipped = false) {
   const streakLabel = streak > 0
     ? `🔥 ${streak}日連続`
     : `🌱 はじめましょう`;
+    
+  let checkHtml = '';
+  if (habit.goalType === 'count') {
+    checkHtml = `<span class="habit-check-inner">${prog.count}/${habit.goalValue || 1}</span>`;
+    if (isCompleted) checkHtml = '✓';
+  } else if (habit.goalType === 'timer') {
+    checkHtml = isCompleted ? '✓' : `<span class="habit-check-inner">⏱️</span>`;
+  } else {
+    checkHtml = isCompleted ? '✓' : '';
+  }
 
   return `
     <div class="habit-card ${isCompleted ? 'completed' : ''} ${isSkipped ? 'skipped' : ''}"
       data-id="${habit.id}"
       style="--habit-color: ${habit.color}; animation-delay: ${animIndex * 0.06}s; ${isSkipped ? 'opacity: 0.7; filter: grayscale(50%);' : ''}">
-      <div class="habit-icon-wrap">
+      <div class="habit-icon-wrap" data-action="memo">
         <div class="habit-icon-bg" style="background: ${habit.color}"></div>
         <span class="habit-icon-emoji">${habit.icon}</span>
       </div>
-      <div class="habit-info">
+      <div class="habit-info" data-action="memo">
         <div class="habit-name">${escapeHtml(habit.name)}</div>
         <div class="habit-meta">
           <span class="habit-streak">${streakLabel}</span>
@@ -490,7 +557,7 @@ function renderHabitCard(habit, animIndex = 0, isSkipped = false) {
         data-action="toggle"
         aria-label="${escapeHtml(habit.name)}を完了にする"
         aria-checked="${isCompleted}">
-        ${isCompleted ? '✓' : ''}
+        ${checkHtml}
       </button>
     </div>
   `;
@@ -532,8 +599,8 @@ function renderTodayTab() {
 
   // アクティブな習慣（完了済みを下へソート）
   activeHabits.sort((a, b) => {
-    const aComp = !!(a.completions && a.completions[todayStr]);
-    const bComp = !!(b.completions && b.completions[todayStr]);
+    const aComp = getHabitProgress(a, todayStr).done;
+    const bComp = getHabitProgress(b, todayStr).done;
     return aComp - bComp;
   });
 
@@ -650,7 +717,7 @@ function renderHeatmap() {
     }
 
     const total = habits.length;
-    const completed = habits.filter(h => h.completions && h.completions[dateStr]).length;
+    const completed = habits.filter(h => getHabitProgress(h, dateStr).done).length;
     const ratio = completed / total;
 
     let levelClass = 'no-data';
@@ -868,7 +935,7 @@ function renderHistoryTab() {
     d.setDate(today.getDate() - i);
     const dateStr = getDateString(d);
 
-    const completedHabits = habits.filter(h => h.completions && h.completions[dateStr]);
+    const completedHabits = habits.filter(h => getHabitProgress(h, dateStr).done);
     const metrics = dailyMetrics[dateStr];
     const hasMetrics = metrics && (metrics.intake || metrics.burned || metrics.weight);
 
@@ -887,17 +954,21 @@ function renderHistoryTab() {
   }
 
   container.innerHTML = groups.map(g => {
-    const rate = Math.round((g.completedCount / g.total) * 100);
+    const rate = Math.round((g.completedCount / g.total) * 100) || 0;
     const habitItems = habits.map(h => {
-      const done = h.completions && h.completions[g.dateStr];
+      const done = getHabitProgress(h, g.dateStr).done;
+      const memoText = (h.memos && h.memos[g.dateStr]) ? h.memos[g.dateStr] : '';
       return `
-        <div class="history-habit-item">
-          <span class="history-habit-icon">${h.icon}</span>
-          <span class="history-habit-name"
-            style="${done ? '' : 'color: var(--text-muted)'}">
-            ${escapeHtml(h.name)}
-          </span>
-          <span class="history-habit-check">${done ? '✅' : '⬜'}</span>
+        <div class="history-habit-item-wrap" style="display: flex; flex-direction: column;">
+          <div class="history-habit-item">
+            <span class="history-habit-icon">${h.icon}</span>
+            <span class="history-habit-name"
+              style="${done ? '' : 'color: var(--text-muted)'}">
+              ${escapeHtml(h.name)}
+            </span>
+            <span class="history-habit-check">${done ? '✅' : '⬜'}</span>
+          </div>
+          ${memoText ? `<span class="history-memo">💬 ${escapeHtml(memoText)}</span>` : ''}
         </div>
       `;
     }).join('');
@@ -1031,6 +1102,57 @@ function initFrequencyPicker() {
 }
 
 /**
+ * 目標タイプピッカーを初期化する
+ */
+function initGoalTypePicker() {
+  const picker = document.getElementById('goal-type-picker');
+  const group = document.getElementById('goal-value-group');
+  const label = document.getElementById('goal-value-label');
+  const unit = document.getElementById('goal-value-unit');
+  const input = document.getElementById('goal-value-input');
+  
+  if (!picker) return;
+
+  const updateUI = () => {
+    picker.querySelectorAll('.goal-type-btn').forEach(b => {
+      b.classList.toggle('selected', b.dataset.type === selectedGoalType);
+    });
+    
+    if (selectedGoalType === 'check') {
+      group.classList.add('hidden');
+    } else {
+      group.classList.remove('hidden');
+      if (selectedGoalType === 'count') {
+        label.textContent = '目標回数';
+        unit.textContent = '回';
+        // Checkから切り替わったときのデフォルト値セット
+        if (input.value == 1 && selectedGoalValue == 1) input.value = 3; 
+        else input.value = selectedGoalValue;
+      } else if (selectedGoalType === 'timer') {
+        label.textContent = '目標時間';
+        unit.textContent = '分';
+        if (input.value == 1 && selectedGoalValue == 1) input.value = 15;
+        else input.value = selectedGoalValue;
+      }
+    }
+  };
+
+  updateUI();
+
+  if (!picker.dataset.initialized) {
+    picker.addEventListener('click', (e) => {
+      const btn = e.target.closest('.goal-type-btn');
+      if (!btn) return;
+      selectedGoalType = btn.dataset.type;
+      // 入力中の値も変数に退避
+      selectedGoalValue = Number(input.value) || 1; 
+      updateUI();
+    });
+    picker.dataset.initialized = 'true';
+  }
+}
+
+/**
  * 習慣追加モーダルを開く
  */
 function openAddModal() {
@@ -1039,6 +1161,8 @@ function openAddModal() {
   selectedColor = COLORS[0];
   selectedCategory = CATEGORIES[0];
   selectedFrequency = [0, 1, 2, 3, 4, 5, 6];
+  selectedGoalType = 'check';
+  selectedGoalValue = 1;
 
   document.getElementById('modal-title-text').textContent = '習慣を追加';
   document.getElementById('habit-name-input').value = '';
@@ -1048,11 +1172,14 @@ function openAddModal() {
   document.getElementById('reminder-time').value = '08:00';
   document.getElementById('delete-habit-row').classList.add('hidden');
   document.getElementById('skip-habit-row').classList.add('hidden');
+  const gInput = document.getElementById('goal-value-input');
+  if (gInput) gInput.value = 1;
 
   initIconGrid();
   initCategoryPicker();
   initColorPicker();
   initFrequencyPicker();
+  initGoalTypePicker();
 
   document.getElementById('habit-modal').classList.remove('hidden');
 
@@ -1075,6 +1202,8 @@ function openEditModal(habitId) {
   selectedColor = habit.color;
   selectedCategory = habit.category;
   selectedFrequency = habit.frequency ? [...habit.frequency] : [0, 1, 2, 3, 4, 5, 6];
+  selectedGoalType = habit.goalType || 'check';
+  selectedGoalValue = habit.goalValue || 1;
 
   document.getElementById('modal-title-text').textContent = '習慣を編集';
   document.getElementById('habit-name-input').value = habit.name;
@@ -1083,6 +1212,9 @@ function openEditModal(habitId) {
   document.getElementById('reminder-time').value = habit.reminderTime || '08:00';
   document.getElementById('reminder-time').disabled = !(habit.reminderEnabled);
   document.getElementById('delete-habit-row').classList.remove('hidden');
+
+  const gInput = document.getElementById('goal-value-input');
+  if (gInput) gInput.value = selectedGoalValue;
 
   const skipRow = document.getElementById('skip-habit-row');
   const skipBtn = document.getElementById('btn-skip-habit');
@@ -1099,6 +1231,7 @@ function openEditModal(habitId) {
   initCategoryPicker();
   initColorPicker();
   initFrequencyPicker();
+  initGoalTypePicker();
 
   document.getElementById('habit-modal').classList.remove('hidden');
 }
@@ -1124,12 +1257,18 @@ function saveFromModal() {
     return;
   }
 
+  const goalValueInput = document.getElementById('goal-value-input');
+  const countVal = goalValueInput ? Number(goalValueInput.value) : 1;
+  selectedGoalValue = Math.max(1, countVal);
+
   const data = {
     name,
     icon: selectedIcon,
     color: selectedColor,
     category: selectedCategory,
     frequency: selectedFrequency,
+    goalType: selectedGoalType,
+    goalValue: selectedGoalValue,
     reminderEnabled: document.getElementById('reminder-toggle').checked,
     reminderTime: document.getElementById('reminder-time').value,
   };
@@ -1260,33 +1399,198 @@ function renderAll() {
 // ===============================
 
 /**
- * 習慣リストのクリックイベントを処理する
+ * 習慣リストのクリック（タップ）イベントを処理する
  */
 function handleHabitListClick(e) {
+  const card = e.target.closest('.habit-card');
+  if (!card) return;
+  const habitId = card.dataset.id;
+  const habit = habits.find(h => h.id === habitId);
+  if (!habit) return;
+
+  const todayStr = getDateString();
+  const prog = getHabitProgress(habit, todayStr);
+
   const toggleBtn = e.target.closest('[data-action="toggle"]');
-  if (!toggleBtn) return;
+  const memoEl = e.target.closest('[data-action="memo"]');
 
-  const habitId = toggleBtn.dataset.id;
-  const card = document.querySelector(`.habit-card[data-id="${habitId}"]`);
+  // チェックボタンを押した時
+  if (toggleBtn) {
+    if (habit.goalType === 'timer' && !prog.done) {
+      openTimerModal(habit);
+      return;
+    }
+    
+    if (!habit.completions) habit.completions = {};
 
-  // リップルエフェクト
-  if (card) {
+    if (habit.goalType === 'count') {
+      if (!prog.done) {
+        habit.completions[todayStr] = prog.count + 1;
+        addXp(2); // 部分完了
+        if (prog.count + 1 >= (habit.goalValue || 1)) {
+          addXp(8); // フル完了で残り加算
+        }
+      } else {
+        delete habit.completions[todayStr];
+      }
+    } else {
+      if (prog.done) {
+        delete habit.completions[todayStr];
+      } else {
+        habit.completions[todayStr] = true;
+        addXp(10);
+      }
+    }
+    
+    // リップルエフェクト
     const ripple = document.createElement('div');
     ripple.className = 'ripple';
-    const rect = card.getBoundingClientRect();
-    const x = (e.clientX || e.touches?.[0]?.clientX || rect.left + rect.width / 2) - rect.left - 50;
-    const y = (e.clientY || e.touches?.[0]?.clientY || rect.top + rect.height / 2) - rect.top - 50;
+    const rect = toggleBtn.getBoundingClientRect();
+    const x = Math.max(0, (e.clientX || e.touches?.[0]?.clientX || rect.left + rect.width / 2) - rect.left - 50);
+    const y = Math.max(0, (e.clientY || e.touches?.[0]?.clientY || rect.top + rect.height / 2) - rect.top - 50);
     ripple.style.left = x + 'px';
     ripple.style.top = y + 'px';
-    card.appendChild(ripple);
+    toggleBtn.appendChild(ripple);
     setTimeout(() => ripple.remove(), 600);
+    
+    if (navigator.vibrate) navigator.vibrate(30);
+
+    saveHabits();
+    renderAll();
+    return;
   }
 
-  // バイブレーション（対応端末のみ）
-  if (navigator.vibrate) navigator.vibrate(30);
+  // カード本体を押した時（メモ）
+  if (memoEl) {
+    openMemoModal(habit, todayStr);
+    return;
+  }
+}
 
-  toggleCompletion(habitId);
-  renderTodayTab();
+// ===============================
+// タイマー＆メモモーダル機能
+// ===============================
+
+function openTimerModal(habit) {
+  const modal = document.getElementById('timer-modal');
+  const nameEl = document.getElementById('timer-habit-name');
+  const iconEl = document.getElementById('timer-icon');
+  const display = document.getElementById('timer-display');
+  const fill = document.getElementById('timer-circle-fill');
+  const startBtn = document.getElementById('timer-start-btn');
+  const stopBtn = document.getElementById('timer-stop-btn');
+
+  if (!modal || !nameEl) return;
+
+  nameEl.textContent = habit.name;
+  iconEl.textContent = habit.icon;
+  
+  const targetMinutes = habit.goalValue || 15;
+  let remainingSeconds = targetMinutes * 60;
+  const totalSeconds = remainingSeconds;
+  
+  if (activeTimerInfo) {
+    clearInterval(activeTimerInfo.interval);
+    activeTimerInfo = null;
+  }
+
+  const updateDisplay = () => {
+    const m = Math.floor(remainingSeconds / 60);
+    const s = remainingSeconds % 60;
+    display.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    const pct = (remainingSeconds / totalSeconds) * 283;
+    fill.style.strokeDasharray = `${pct}, 283`;
+  };
+
+  updateDisplay();
+  modal.classList.remove('hidden');
+  startBtn.textContent = 'スタート';
+  startBtn.onclick = () => {
+    if (activeTimerInfo && activeTimerInfo.isRunning) {
+      // 一時停止
+      clearInterval(activeTimerInfo.interval);
+      activeTimerInfo.isRunning = false;
+      startBtn.textContent = '再開';
+    } else {
+      // スタート
+      startBtn.textContent = '一時停止';
+      if (!activeTimerInfo) activeTimerInfo = { habitId: habit.id, isRunning: true };
+      else activeTimerInfo.isRunning = true;
+      
+      activeTimerInfo.interval = setInterval(() => {
+        remainingSeconds--;
+        updateDisplay();
+        if (remainingSeconds <= 0) {
+          clearInterval(activeTimerInfo.interval);
+          activeTimerInfo = null;
+          modal.classList.add('hidden');
+          
+          if (!habit.completions) habit.completions = {};
+          habit.completions[getDateString()] = true;
+          addXp(10);
+          saveHabits();
+          renderAll();
+          showToast(`「${habit.name}」達成！🎉`, 'success');
+          if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        }
+      }, 1000);
+    }
+  };
+
+  const closeTimer = () => {
+    if (activeTimerInfo) clearInterval(activeTimerInfo.interval);
+    activeTimerInfo = null;
+    modal.classList.add('hidden');
+  };
+
+  stopBtn.onclick = closeTimer;
+  document.getElementById('timer-close-btn').onclick = closeTimer;
+}
+
+function openMemoModal(habit, dateStr) {
+  const modal = document.getElementById('memo-modal');
+  const nameEl = document.getElementById('memo-habit-name');
+  const input = document.getElementById('memo-input');
+  const saveBtn = document.getElementById('memo-save');
+  const closeBtn = document.getElementById('memo-close');
+  const overlay = document.getElementById('memo-overlay');
+
+  if (!modal) return;
+
+  nameEl.textContent = `${habit.icon} ${habit.name} のメモ`;
+  input.value = (habit.memos && habit.memos[dateStr]) || '';
+  modal.classList.remove('hidden');
+  
+  // キーボード開くの待つ
+  setTimeout(() => input.focus(), 100);
+
+  const closeMemo = () => modal.classList.add('hidden');
+
+  saveBtn.onclick = () => {
+    if (!habit.memos) habit.memos = {};
+    const val = input.value.trim();
+    if (val) {
+      habit.memos[dateStr] = val;
+    } else {
+      delete habit.memos[dateStr];
+    }
+    saveHabits();
+    renderAll();
+    closeMemo();
+    showToast('メモを保存しました', 'success');
+  };
+
+  const removeListeners = () => {
+    closeBtn.removeEventListener('click', handleCloseClick);
+    overlay.removeEventListener('click', handleCloseClick);
+  };
+  const handleCloseClick = () => {
+    closeMemo();
+    removeListeners();
+  };
+
+  closeBtn.addEventListener('click', handleCloseClick);
+  overlay.addEventListener('click', handleCloseClick);
 }
 
 /**
