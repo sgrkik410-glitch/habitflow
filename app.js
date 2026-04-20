@@ -54,6 +54,7 @@ let editingHabitId = null;
 let selectedIcon = '😊';
 let selectedColor = COLORS[0];
 let selectedCategory = CATEGORIES[0];
+let selectedFrequency = [0, 1, 2, 3, 4, 5, 6];
 let heatmapYear = new Date().getFullYear();
 let heatmapMonth = new Date().getMonth();
 let deferredInstallPrompt = null;
@@ -76,6 +77,16 @@ function getDateString(date = new Date()) {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+/**
+ * 指定した日付で、その習慣が実行予定（アクティブ）かどうかを判定する
+ */
+function isHabitDueOnDate(habit, dateObj) {
+  const dateStr = getDateString(dateObj);
+  if (habit.skips && habit.skips[dateStr]) return false;
+  if (!habit.frequency) return true; // 旧データのフォールバック
+  return habit.frequency.includes(dateObj.getDay());
 }
 
 /**
@@ -135,8 +146,12 @@ function loadHabits() {
   try {
     const data = localStorage.getItem(STORAGE_KEY_HABITS);
     habits = data ? JSON.parse(data) : [];
-    // データの整合性チェック
-    habits = habits.filter(h => h && h.id && h.name);
+    // データの整合性チェックとデフォルト値の補完
+    habits = habits.filter(h => h && h.id && h.name).map(h => ({
+      ...h,
+      frequency: h.frequency || [0, 1, 2, 3, 4, 5, 6],
+      skips: h.skips || {}
+    }));
   } catch (e) {
     habits = [];
   }
@@ -190,14 +205,24 @@ function loadMetrics() {
 function getCurrentStreak(habit) {
   let streak = 0;
   const today = new Date();
+  const todayStr = getDateString(today);
+  
   for (let i = 0; i < 365; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
     const dateStr = getDateString(d);
-    if (habit.completions && habit.completions[dateStr]) {
+    
+    const isCompleted = habit.completions && habit.completions[dateStr];
+    
+    if (isCompleted) {
       streak++;
     } else {
-      break;
+      const isDue = isHabitDueOnDate(habit, d);
+      if (isDue && dateStr < todayStr) {
+        break; // 過去の実行日で未完了ならストリーク終了
+      }
+      // isDueがfalseならペナルティなしで過去へ遡る
+      // 今日が未完了の場合もストリークは維持
     }
   }
   return streak;
@@ -207,23 +232,22 @@ function getCurrentStreak(habit) {
  * 習慣の最長ストリークを計算する
  */
 function getBestStreak(habit) {
-  if (!habit.completions) return 0;
-  const dates = Object.keys(habit.completions)
-    .filter(k => habit.completions[k])
-    .sort();
-  if (dates.length === 0) return 0;
-
-  let best = 1;
-  let current = 1;
-  for (let i = 1; i < dates.length; i++) {
-    const prev = new Date(dates[i - 1] + 'T00:00:00');
-    const curr = new Date(dates[i] + 'T00:00:00');
-    const diff = (curr - prev) / (1000 * 60 * 60 * 24);
-    if (diff === 1) {
+  let best = 0;
+  let current = 0;
+  const today = new Date();
+  for (let i = 365; i >= 0; i--) { // 古い日から今日へ
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const dateStr = getDateString(d);
+    
+    const isCompleted = habit.completions && habit.completions[dateStr];
+    const isDue = isHabitDueOnDate(habit, d);
+    
+    if (isCompleted) {
       current++;
       best = Math.max(best, current);
-    } else {
-      current = 1;
+    } else if (isDue) {
+      current = 0; // 実行予定なのに未完了なら0に戻る
     }
   }
   return best;
@@ -287,6 +311,8 @@ function createHabit(data) {
     category: data.category,
     reminderEnabled: data.reminderEnabled || false,
     reminderTime: data.reminderTime || '08:00',
+    frequency: data.frequency || [0, 1, 2, 3, 4, 5, 6],
+    skips: {},
     createdAt: new Date().toISOString(),
     completions: {},
   };
@@ -359,9 +385,12 @@ function renderDateDisplay() {
  * プログレス円グラフを更新する
  */
 function renderProgress() {
-  const today = getDateString();
-  const total = habits.length;
-  const completed = habits.filter(h => h.completions && h.completions[today]).length;
+  const todayStr = getDateString();
+  const todayDate = new Date();
+  
+  const activeHabits = habits.filter(h => isHabitDueOnDate(h, todayDate));
+  const total = activeHabits.length;
+  const completed = activeHabits.filter(h => h.completions && h.completions[todayStr]).length;
   const pct = total === 0 ? 0 : Math.round((completed / total) * 100);
 
   const fill = document.getElementById('progress-circle-fill');
@@ -397,8 +426,9 @@ function renderWeekCalendar() {
     const isToday = dateStr === today;
 
     // その日の完了状況を計算
-    const total = habits.length;
-    const completed = habits.filter(h => h.completions && h.completions[dateStr]).length;
+    const dayActiveHabits = habits.filter(h => isHabitDueOnDate(h, date));
+    const total = dayActiveHabits.length;
+    const completed = dayActiveHabits.filter(h => h.completions && h.completions[dateStr]).length;
     const isDone = total > 0 && completed === total;
     const isPartial = total > 0 && completed > 0 && completed < total;
 
@@ -419,7 +449,7 @@ function renderWeekCalendar() {
 /**
  * 習慣カードのHTMLを生成する
  */
-function renderHabitCard(habit, animIndex = 0) {
+function renderHabitCard(habit, animIndex = 0, isSkipped = false) {
   const today = getDateString();
   const isCompleted = !!(habit.completions && habit.completions[today]);
   const streak = getCurrentStreak(habit);
@@ -427,8 +457,13 @@ function renderHabitCard(habit, animIndex = 0) {
 
   const weekDotsHtml = last7.map(d => {
     const done = habit.completions && habit.completions[d];
-    return `<div class="habit-week-dot ${done ? 'done' : ''}"
-      style="${done ? `background:${habit.color}` : ''}"></div>`;
+    const due = isHabitDueOnDate(habit, new Date(d + 'T00:00:00'));
+    let dotStyle = done ? `background:${habit.color}` : '';
+    let dotClass = 'habit-week-dot';
+    if (done) dotClass += ' done';
+    if (!due && !done) dotClass += ' skip';
+    
+    return `<div class="${dotClass}" style="${dotStyle}"></div>`;
   }).join('');
 
   const streakLabel = streak > 0
@@ -436,9 +471,9 @@ function renderHabitCard(habit, animIndex = 0) {
     : `🌱 はじめましょう`;
 
   return `
-    <div class="habit-card ${isCompleted ? 'completed' : ''}"
+    <div class="habit-card ${isCompleted ? 'completed' : ''} ${isSkipped ? 'skipped' : ''}"
       data-id="${habit.id}"
-      style="--habit-color: ${habit.color}; animation-delay: ${animIndex * 0.06}s">
+      style="--habit-color: ${habit.color}; animation-delay: ${animIndex * 0.06}s; ${isSkipped ? 'opacity: 0.7; filter: grayscale(50%);' : ''}">
       <div class="habit-icon-wrap">
         <div class="habit-icon-bg" style="background: ${habit.color}"></div>
         <span class="habit-icon-emoji">${habit.icon}</span>
@@ -470,26 +505,47 @@ function renderTodayTab() {
   renderWeekCalendar();
 
   const listEl = document.getElementById('habits-list');
+  const skippedContainer = document.getElementById('skipped-habits-container');
+  const skippedListEl = document.getElementById('skipped-habits-list');
   const emptyEl = document.getElementById('empty-state');
   if (!listEl || !emptyEl) return;
 
   if (habits.length === 0) {
     emptyEl.classList.remove('hidden');
     listEl.innerHTML = '';
+    if(skippedContainer) skippedContainer.classList.add('hidden');
     return;
   }
 
   emptyEl.classList.add('hidden');
 
-  // 完了済みを下へソート
-  const today = getDateString();
-  const sorted = [...habits].sort((a, b) => {
-    const aComp = !!(a.completions && a.completions[today]);
-    const bComp = !!(b.completions && b.completions[today]);
+  const todayStr = getDateString();
+  const todayDate = new Date();
+  
+  const activeHabits = [];
+  const skippedHabits = [];
+  
+  habits.forEach(h => {
+    if (isHabitDueOnDate(h, todayDate)) activeHabits.push(h);
+    else skippedHabits.push(h);
+  });
+
+  // アクティブな習慣（完了済みを下へソート）
+  activeHabits.sort((a, b) => {
+    const aComp = !!(a.completions && a.completions[todayStr]);
+    const bComp = !!(b.completions && b.completions[todayStr]);
     return aComp - bComp;
   });
 
-  listEl.innerHTML = sorted.map((h, i) => renderHabitCard(h, i)).join('');
+  listEl.innerHTML = activeHabits.map((h, i) => renderHabitCard(h, i)).join('');
+
+  // お休みの習慣をレンダリング
+  if (skippedHabits.length > 0 && skippedContainer && skippedListEl) {
+    skippedContainer.classList.remove('hidden');
+    skippedListEl.innerHTML = skippedHabits.map((h, i) => renderHabitCard(h, i, true)).join('');
+  } else if (skippedContainer) {
+    skippedContainer.classList.add('hidden');
+  }
 
   // 健康記録フォームに今日のデータを反映
   const intakeInput = document.getElementById('metric-intake');
@@ -945,6 +1001,36 @@ function initColorPicker() {
 }
 
 /**
+ * 曜日ピッカーを初期化する
+ */
+function initFrequencyPicker() {
+  const picker = document.getElementById('frequency-picker');
+  if (!picker) return;
+
+  picker.querySelectorAll('.freq-option').forEach(btn => {
+    const dayIndex = parseInt(btn.dataset.day, 10);
+    btn.classList.toggle('selected', selectedFrequency.includes(dayIndex));
+  });
+
+  // イベントの重複登録を防ぐためのハック
+  if (!picker.dataset.initialized) {
+    picker.addEventListener('click', (e) => {
+      const btn = e.target.closest('.freq-option');
+      if (!btn) return;
+      const dayIndex = parseInt(btn.dataset.day, 10);
+      
+      if (selectedFrequency.includes(dayIndex)) {
+        selectedFrequency = selectedFrequency.filter(d => d !== dayIndex);
+      } else {
+        selectedFrequency.push(dayIndex);
+      }
+      btn.classList.toggle('selected', selectedFrequency.includes(dayIndex));
+    });
+    picker.dataset.initialized = 'true';
+  }
+}
+
+/**
  * 習慣追加モーダルを開く
  */
 function openAddModal() {
@@ -952,6 +1038,7 @@ function openAddModal() {
   selectedIcon = '😊';
   selectedColor = COLORS[0];
   selectedCategory = CATEGORIES[0];
+  selectedFrequency = [0, 1, 2, 3, 4, 5, 6];
 
   document.getElementById('modal-title-text').textContent = '習慣を追加';
   document.getElementById('habit-name-input').value = '';
@@ -960,10 +1047,12 @@ function openAddModal() {
   document.getElementById('reminder-time').disabled = true;
   document.getElementById('reminder-time').value = '08:00';
   document.getElementById('delete-habit-row').classList.add('hidden');
+  document.getElementById('skip-habit-row').classList.add('hidden');
 
   initIconGrid();
   initCategoryPicker();
   initColorPicker();
+  initFrequencyPicker();
 
   document.getElementById('habit-modal').classList.remove('hidden');
 
@@ -985,6 +1074,7 @@ function openEditModal(habitId) {
   selectedIcon = habit.icon;
   selectedColor = habit.color;
   selectedCategory = habit.category;
+  selectedFrequency = habit.frequency ? [...habit.frequency] : [0, 1, 2, 3, 4, 5, 6];
 
   document.getElementById('modal-title-text').textContent = '習慣を編集';
   document.getElementById('habit-name-input').value = habit.name;
@@ -994,9 +1084,21 @@ function openEditModal(habitId) {
   document.getElementById('reminder-time').disabled = !(habit.reminderEnabled);
   document.getElementById('delete-habit-row').classList.remove('hidden');
 
+  const skipRow = document.getElementById('skip-habit-row');
+  const skipBtn = document.getElementById('btn-skip-habit');
+  skipRow.classList.remove('hidden');
+  
+  const todayStr = getDateString();
+  if (habit.skips && habit.skips[todayStr]) {
+    skipBtn.textContent = '🔄 今日のお休みを取り消す';
+  } else {
+    skipBtn.textContent = '💤 今日をお休みにする';
+  }
+
   initIconGrid();
   initCategoryPicker();
   initColorPicker();
+  initFrequencyPicker();
 
   document.getElementById('habit-modal').classList.remove('hidden');
 }
@@ -1027,6 +1129,7 @@ function saveFromModal() {
     icon: selectedIcon,
     color: selectedColor,
     category: selectedCategory,
+    frequency: selectedFrequency,
     reminderEnabled: document.getElementById('reminder-toggle').checked,
     reminderTime: document.getElementById('reminder-time').value,
   };
@@ -1597,6 +1700,35 @@ function init() {
           showToast('習慣を削除しました', 'info');
         },
       });
+    });
+  }
+
+  // ===== スキップボタン（編集モーダル内） =====
+  const skipBtn = document.getElementById('btn-skip-habit');
+  if (skipBtn) {
+    skipBtn.addEventListener('click', () => {
+      if (!editingHabitId) return;
+      const habit = habits.find(h => h.id === editingHabitId);
+      if (!habit) return;
+
+      const todayStr = getDateString();
+      if (!habit.skips) habit.skips = {};
+      
+      if (habit.skips[todayStr]) {
+        delete habit.skips[todayStr];
+        showToast('今日のお休みを取り消しました', 'info');
+      } else {
+        habit.skips[todayStr] = true;
+        // もし今日すでに完了していたら完了状態も解除する
+        if (habit.completions && habit.completions[todayStr]) {
+          delete habit.completions[todayStr];
+        }
+        showToast('今日はお休みにしました 💤', 'info');
+      }
+      
+      saveHabits();
+      closeModal();
+      renderAll();
     });
   }
 

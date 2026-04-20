@@ -77,6 +77,12 @@
           <!-- 習慣リスト -->
           <div id="habits-list" class="habits-list"></div>
 
+          <!-- お休みの習慣エリア -->
+          <div id="skipped-habits-container" class="hidden" style="margin-top: 24px;">
+            <h3 class="section-title" style="font-size: 14px; color: var(--text-muted); text-align: center;">👇 今日はお休みの習慣</h3>
+            <div id="skipped-habits-list" class="habits-list opacity-75"></div>
+          </div>
+
             <!-- 全完了祝福バナー -->
           <div id="completion-banner" class="completion-banner hidden">
             <div class="completion-emoji">🎉</div>
@@ -313,6 +319,20 @@
           <div class="category-picker" id="category-picker"></div>
         </div>
 
+        <!-- 実行する曜日選択 -->
+        <div class="form-group">
+          <label class="form-label">実行する曜日</label>
+          <div class="frequency-picker" id="frequency-picker">
+            <button class="freq-option selected" data-day="0">日</button>
+            <button class="freq-option selected" data-day="1">月</button>
+            <button class="freq-option selected" data-day="2">火</button>
+            <button class="freq-option selected" data-day="3">水</button>
+            <button class="freq-option selected" data-day="4">木</button>
+            <button class="freq-option selected" data-day="5">金</button>
+            <button class="freq-option selected" data-day="6">土</button>
+          </div>
+        </div>
+
         <!-- カラー選択 -->
         <div class="form-group">
           <label class="form-label">カラー</label>
@@ -330,6 +350,13 @@
             <input type="time" id="reminder-time" class="form-input time-input"
               value="08:00" disabled aria-label="リマインダー時刻">
           </div>
+        </div>
+
+        <!-- スキップボタン（編集時のみ表示） -->
+        <div id="skip-habit-row" class="delete-habit-row hidden" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+          <button class="btn-delete-habit" id="btn-skip-habit" style="color: var(--text-color); background: var(--bg-card); border: 1px solid var(--border-color);">
+            💤 今日をお休みにする
+          </button>
         </div>
 
         <!-- 削除ボタン（編集時のみ表示） -->

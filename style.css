@@ -1032,6 +1032,41 @@ button {
 }
 
 /* ===========================
+   19.5 曜日ピッカー
+   =========================== */
+.frequency-picker {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.freq-option {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1.5px solid var(--surface-border);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.freq-option.selected {
+  background: rgba(124, 58, 237, 0.2);
+  border-color: var(--primary);
+  color: var(--primary-light);
+  font-weight: 600;
+}
+
+.freq-option:active {
+  transform: scale(0.88);
+}
+
+/* ===========================
    20. カラーピッカー
    =========================== */
 .color-picker {
