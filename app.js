@@ -62,6 +62,9 @@ let heatmapMonth = new Date().getMonth();
 let deferredInstallPrompt = null;
 let healthChart = null; // Chart.jsのインスタンスを保持
 
+// 表示中の日付（デフォルトは今日）
+let viewingDate = null; 
+
 // XP・タイマープロパティ
 let activeTimerInfo = null;
 
@@ -82,6 +85,14 @@ function getDateString(date = new Date()) {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+/**
+ * 閲覧中の日付を変更する
+ */
+function changeViewingDate(dateStr) {
+  viewingDate = dateStr;
+  renderTodayTab();
 }
 
 /**
@@ -160,6 +171,42 @@ function addXp(amount) {
   if (leveledUp) {
     showLevelUpAnimation(settings.userProfile.level);
   }
+}
+
+/**
+ * ユーザープロファイル（レベル・XPバー）の描画
+ */
+function renderUserProfile() {
+  const profile = settings.userProfile || { level: 1, xp: 0 };
+  const levelBadge = document.getElementById('user-level-badge');
+  const xpFill = document.getElementById('xp-bar-fill');
+  const xpText = document.getElementById('xp-text');
+  
+  const requiredXp = profile.level * 100;
+  
+  if (levelBadge) levelBadge.textContent = 'Lv. ' + profile.level;
+  if (xpFill) xpFill.style.width = Math.min((profile.xp / requiredXp) * 100, 100) + '%';
+  if (xpText) xpText.textContent = `${profile.xp} / ${requiredXp} XP`;
+}
+
+/**
+ * レベルアップ時の演出を表示
+ */
+function showLevelUpAnimation(newLevel) {
+  const overlay = document.getElementById('level-up-overlay');
+  const text = document.getElementById('level-up-text');
+  
+  if (!overlay || !text) return;
+  
+  text.textContent = `Lv. ${newLevel} にあがった！`;
+  overlay.classList.remove('hidden');
+  
+  // スマホバイブレーション
+  if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 300]);
+  
+  setTimeout(() => {
+    overlay.classList.add('hidden');
+  }, 3000);
 }
 
 /**
@@ -429,11 +476,21 @@ function escapeHtml(str) {
  * 今日の日付を表示する
  */
 function renderDateDisplay() {
-  const today = new Date();
+  if (!viewingDate) viewingDate = getDateString();
+  const targetDate = new Date(viewingDate + 'T00:00:00');
   const weekdays = ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'];
+  
   const el = document.getElementById('date-display');
+  const titleEl = document.querySelector('.header-title');
   if (el) {
-    el.textContent = `${today.getMonth() + 1}月${today.getDate()}日 ${weekdays[today.getDay()]}`;
+    el.textContent = `${targetDate.getMonth() + 1}月${targetDate.getDate()}日 ${weekdays[targetDate.getDay()]}`;
+  }
+  if (titleEl) {
+    const todayStr = getDateString();
+    const yesterdayStr = getDateString(new Date(Date.now() - 86400000));
+    if (viewingDate === todayStr) titleEl.textContent = '今日の習慣';
+    else if (viewingDate === yesterdayStr) titleEl.textContent = '昨日の習慣';
+    else titleEl.textContent = `${targetDate.getMonth() + 1}月${targetDate.getDate()}日の習慣`;
   }
 }
 
@@ -441,12 +498,12 @@ function renderDateDisplay() {
  * プログレス円グラフを更新する
  */
 function renderProgress() {
-  const todayStr = getDateString();
-  const todayDate = new Date();
+  const targetStr = viewingDate;
+  const targetDate = new Date(viewingDate + 'T00:00:00');
   
-  const activeHabits = habits.filter(h => isHabitDueOnDate(h, todayDate));
+  const activeHabits = habits.filter(h => isHabitDueOnDate(h, targetDate));
   const total = activeHabits.length;
-  const completed = activeHabits.filter(h => getHabitProgress(h, todayStr).done).length;
+  const completed = activeHabits.filter(h => getHabitProgress(h, targetStr).done).length;
   const pct = total === 0 ? 0 : Math.round((completed / total) * 100);
 
   const fill = document.getElementById('progress-circle-fill');
@@ -480,6 +537,7 @@ function renderWeekCalendar() {
     const dayNum = date.getDate();
     const dayLabel = WEEKDAY_SHORT[date.getDay()];
     const isToday = dateStr === today;
+    const isSelected = dateStr === viewingDate;
 
     // その日の完了状況を計算
     const dayActiveHabits = habits.filter(h => isHabitDueOnDate(h, date));
@@ -492,9 +550,12 @@ function renderWeekCalendar() {
     if (isDone) dotClass += ' completed';
     else if (isPartial) dotClass += ' partial';
     if (isToday) dotClass += ' today';
+    
+    let wrapClass = 'week-day';
+    if (isSelected) wrapClass += ' selected';
 
     return `
-      <div class="week-day">
+      <div class="${wrapClass}" data-date="${dateStr}" onclick="changeViewingDate('${dateStr}')">
         <span class="week-day-label">${dayLabel}</span>
         <div class="${dotClass}">${dayNum}</div>
       </div>
@@ -506,8 +567,8 @@ function renderWeekCalendar() {
  * 習慣カードのHTMLを生成する
  */
 function renderHabitCard(habit, animIndex = 0, isSkipped = false) {
-  const today = getDateString();
-  const prog = getHabitProgress(habit, today);
+  const targetStr = viewingDate;
+  const prog = getHabitProgress(habit, targetStr);
   const isCompleted = prog.done;
   const streak = getCurrentStreak(habit);
   const last7 = getLast7Days();
@@ -1408,8 +1469,8 @@ function handleHabitListClick(e) {
   const habit = habits.find(h => h.id === habitId);
   if (!habit) return;
 
-  const todayStr = getDateString();
-  const prog = getHabitProgress(habit, todayStr);
+  const targetStr = viewingDate || getDateString();
+  const prog = getHabitProgress(habit, targetStr);
 
   const toggleBtn = e.target.closest('[data-action="toggle"]');
   const memoEl = e.target.closest('[data-action="memo"]');
@@ -1417,7 +1478,7 @@ function handleHabitListClick(e) {
   // チェックボタンを押した時
   if (toggleBtn) {
     if (habit.goalType === 'timer' && !prog.done) {
-      openTimerModal(habit);
+      openTimerModal(habit, targetStr);
       return;
     }
     
@@ -1425,19 +1486,19 @@ function handleHabitListClick(e) {
 
     if (habit.goalType === 'count') {
       if (!prog.done) {
-        habit.completions[todayStr] = prog.count + 1;
+        habit.completions[targetStr] = prog.count + 1;
         addXp(2); // 部分完了
         if (prog.count + 1 >= (habit.goalValue || 1)) {
           addXp(8); // フル完了で残り加算
         }
       } else {
-        delete habit.completions[todayStr];
+        delete habit.completions[targetStr];
       }
     } else {
       if (prog.done) {
-        delete habit.completions[todayStr];
+        delete habit.completions[targetStr];
       } else {
-        habit.completions[todayStr] = true;
+        habit.completions[targetStr] = true;
         addXp(10);
       }
     }
@@ -1462,7 +1523,7 @@ function handleHabitListClick(e) {
 
   // カード本体を押した時（メモ）
   if (memoEl) {
-    openMemoModal(habit, todayStr);
+    openMemoModal(habit, targetStr);
     return;
   }
 }
@@ -1471,7 +1532,7 @@ function handleHabitListClick(e) {
 // タイマー＆メモモーダル機能
 // ===============================
 
-function openTimerModal(habit) {
+function openTimerModal(habit, dateStr) {
   const modal = document.getElementById('timer-modal');
   const nameEl = document.getElementById('timer-habit-name');
   const iconEl = document.getElementById('timer-icon');
@@ -2015,19 +2076,19 @@ function init() {
       const habit = habits.find(h => h.id === editingHabitId);
       if (!habit) return;
 
-      const todayStr = getDateString();
+      const targetStr = viewingDate || getDateString();
       if (!habit.skips) habit.skips = {};
       
-      if (habit.skips[todayStr]) {
-        delete habit.skips[todayStr];
-        showToast('今日のお休みを取り消しました', 'info');
+      if (habit.skips[targetStr]) {
+        delete habit.skips[targetStr];
+        showToast(targetStr === getDateString() ? '今日のお休みを取り消しました' : 'お休みを取り消しました', 'info');
       } else {
-        habit.skips[todayStr] = true;
-        // もし今日すでに完了していたら完了状態も解除する
-        if (habit.completions && habit.completions[todayStr]) {
-          delete habit.completions[todayStr];
+        habit.skips[targetStr] = true;
+        // もしすでに完了していたら完了状態も解除する
+        if (habit.completions && habit.completions[targetStr]) {
+          delete habit.completions[targetStr];
         }
-        showToast('今日はお休みにしました 💤', 'info');
+        showToast(targetStr === getDateString() ? '今日はお休みにしました 💤' : 'お休みに設定しました 💤', 'info');
       }
       
       saveHabits();
@@ -2101,13 +2162,13 @@ function init() {
   const weightInput = document.getElementById('metric-weight');
 
   const saveMetricsHandler = () => {
-    const today = getDateString();
-    if (!dailyMetrics[today]) {
-      dailyMetrics[today] = {};
+    const targetStr = viewingDate || getDateString();
+    if (!dailyMetrics[targetStr]) {
+      dailyMetrics[targetStr] = {};
     }
-    dailyMetrics[today].intake = intakeInput.value ? Number(intakeInput.value) : null;
-    dailyMetrics[today].burned = burnedInput.value ? Number(burnedInput.value) : null;
-    dailyMetrics[today].weight = weightInput.value ? Number(weightInput.value) : null;
+    dailyMetrics[targetStr].intake = intakeInput.value ? Number(intakeInput.value) : null;
+    dailyMetrics[targetStr].burned = burnedInput.value ? Number(burnedInput.value) : null;
+    dailyMetrics[targetStr].weight = weightInput.value ? Number(weightInput.value) : null;
     saveMetrics();
   };
 

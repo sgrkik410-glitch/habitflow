@@ -322,6 +322,12 @@ button {
   flex-direction: column;
   align-items: center;
   gap: 5px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.week-day:active {
+  opacity: 0.6;
 }
 
 .week-day-label {
@@ -363,6 +369,17 @@ button {
 .week-day-dot.today {
   border-color: var(--primary-light);
   box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
+}
+
+.week-day.selected .week-day-label {
+  color: var(--primary-light);
+  font-weight: 800;
+}
+
+.week-day.selected .week-day-dot {
+  transform: scale(1.1);
+  border-color: var(--accent-light);
+  box-shadow: 0 0 10px rgba(167, 139, 250, 0.4);
 }
 
 /* ===========================
