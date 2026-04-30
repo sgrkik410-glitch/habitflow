@@ -683,6 +683,40 @@ function renderTodayTab() {
   if (intakeInput) intakeInput.value = metrics.intake || '';
   if (burnedInput) burnedInput.value = metrics.burned || '';
   if (weightInput) weightInput.value = metrics.weight || '';
+
+  // 月間実質カロリーの計算と表示
+  const netCaloriesContainer = document.getElementById('monthly-net-calories-list');
+  if (netCaloriesContainer) {
+    const monthlyNet = {};
+    Object.keys(dailyMetrics).forEach(dateStr => {
+      const m = dailyMetrics[dateStr];
+      const intake = m.intake || 0;
+      const burned = m.burned || 0;
+      if (intake === 0 && burned === 0) return;
+      
+      const [year, month] = dateStr.split('-');
+      const monthKey = `${year}年${parseInt(month, 10)}月`;
+      if (!monthlyNet[monthKey]) monthlyNet[monthKey] = 0;
+      monthlyNet[monthKey] += (intake - burned);
+    });
+
+    const monthKeys = Object.keys(monthlyNet).sort().reverse();
+    if (monthKeys.length === 0) {
+      netCaloriesContainer.innerHTML = '<div style="color:var(--text-muted);font-size:14px;text-align:center;padding:12px;">まだ記録がありません</div>';
+    } else {
+      netCaloriesContainer.innerHTML = monthKeys.map(key => {
+        const net = monthlyNet[key];
+        const sign = net > 0 ? '+' : '';
+        const color = net > 0 ? '#f59e0b' : (net < 0 ? '#10b981' : '#9ca3af');
+        return `
+          <div style="background:var(--bg-secondary); padding:14px 16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; border: 1px solid var(--surface-border);">
+            <span style="font-weight:600; color:var(--text-primary); font-size:15px;">${key}</span>
+            <span style="font-weight:800; font-size:18px; color:${color};">${sign}${net} kcal</span>
+          </div>
+        `;
+      }).join('');
+    }
+  }
 }
 
 // ===============================
@@ -848,7 +882,7 @@ function renderHealthChart() {
   }
 
   // 過去7日間の日付を取得し、古い順に並び替え（グラフ表示用）
-  const labels = getLast7Days().reverse();
+  const labels = getLast7Days();
 
   const dataIntake = [];
   const dataBurned = [];
