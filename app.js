@@ -675,11 +675,11 @@ function renderTodayTab() {
     skippedContainer.classList.add('hidden');
   }
 
-  // 健康記録フォームに今日のデータを反映
+  // 健康記録フォームに表示中の日付のデータを反映
   const intakeInput = document.getElementById('metric-intake');
   const burnedInput = document.getElementById('metric-burned');
   const weightInput = document.getElementById('metric-weight');
-  const metrics = dailyMetrics[today] || {};
+  const metrics = dailyMetrics[viewingDate] || {};
   if (intakeInput) intakeInput.value = metrics.intake || '';
   if (burnedInput) burnedInput.value = metrics.burned || '';
   if (weightInput) weightInput.value = metrics.weight || '';
