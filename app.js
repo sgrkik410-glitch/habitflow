@@ -1813,7 +1813,7 @@ function exportData() {
     habits,
     dailyMetrics,
     exportedAt: new Date().toISOString(),
-    version: '1.0.0',
+    version: '1.1.0',
     app: 'HabitFlow',
   };
   const json = JSON.stringify(data, null, 2);
