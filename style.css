@@ -471,6 +471,49 @@ button {
   animation: delete-out 0.35s ease forwards;
 }
 
+/* お休み中の習慣カード */
+.habit-card.rest-day {
+  opacity: 0.75;
+  border-color: rgba(100, 116, 139, 0.35);
+  background: rgba(30, 41, 59, 0.6);
+}
+
+/* お休みカードの左ボーダーをグレーに */
+.habit-card.rest-day::before {
+  background: #475569;
+}
+
+/* お休みバッジ */
+.rest-day-badge {
+  position: absolute;
+  top: 8px;
+  right: 48px;
+  background: rgba(71, 85, 105, 0.85);
+  color: #cbd5e1;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.3px;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  pointer-events: none;
+}
+
+/* お休み中のチェックボタン */
+.habit-check.rest-day-btn {
+  border-color: rgba(71, 85, 105, 0.5);
+  background: rgba(30, 41, 59, 0.5);
+  cursor: default;
+  opacity: 0.8;
+}
+
+/* お休みアイコン */
+.rest-day-check-icon {
+  font-size: 16px;
+  opacity: 0.7;
+}
+
 /* 習慣アイコン */
 .habit-icon-wrap {
   width: 46px;

@@ -565,8 +565,10 @@ function renderWeekCalendar() {
 
 /**
  * 習慣カードのHTMLを生成する
+ * @param {boolean} isSkipped - 曜日設定で対象外（下部セクション用）
+ * @param {boolean} isRestDay - 手動でお休み設定した習慣
  */
-function renderHabitCard(habit, animIndex = 0, isSkipped = false) {
+function renderHabitCard(habit, animIndex = 0, isSkipped = false, isRestDay = false) {
   const targetStr = viewingDate;
   const prog = getHabitProgress(habit, targetStr);
   const isCompleted = prog.done;
@@ -598,27 +600,39 @@ function renderHabitCard(habit, animIndex = 0, isSkipped = false) {
     checkHtml = isCompleted ? '✓' : '';
   }
 
+  // お休みバッジHTML
+  const restDayBadge = isRestDay
+    ? `<div class="rest-day-badge">💤 お休み</div>`
+    : '';
+
+  // チェックボタン：お休み中はグレーの💤を表示
+  const checkBtnContent = isRestDay
+    ? `<span class="rest-day-check-icon">💤</span>`
+    : checkHtml;
+
   return `
-    <div class="habit-card ${isCompleted ? 'completed' : ''} ${isSkipped ? 'skipped' : ''}"
+    <div class="habit-card ${isCompleted ? 'completed' : ''} ${isSkipped ? 'skipped' : ''} ${isRestDay ? 'rest-day' : ''}"
       data-id="${habit.id}"
-      style="--habit-color: ${habit.color}; animation-delay: ${animIndex * 0.06}s; ${isSkipped ? 'opacity: 0.7; filter: grayscale(50%);' : ''}">
+      style="--habit-color: ${habit.color}; animation-delay: ${animIndex * 0.06}s; ${isSkipped ? 'opacity: 0.6; filter: grayscale(60%);' : ''}">
+      ${restDayBadge}
       <div class="habit-icon-wrap" data-action="memo">
-        <div class="habit-icon-bg" style="background: ${habit.color}"></div>
+        <div class="habit-icon-bg" style="background: ${isRestDay ? '#6b7280' : habit.color}"></div>
         <span class="habit-icon-emoji">${habit.icon}</span>
       </div>
       <div class="habit-info" data-action="memo">
         <div class="habit-name">${escapeHtml(habit.name)}</div>
         <div class="habit-meta">
-          <span class="habit-streak">${streakLabel}</span>
+          <span class="habit-streak">${isRestDay ? '💤 お休み中' : streakLabel}</span>
           <div class="habit-week-dots">${weekDotsHtml}</div>
         </div>
       </div>
-      <button class="habit-check"
+      <button class="habit-check ${isRestDay ? 'rest-day-btn' : ''}"
         data-id="${habit.id}"
         data-action="toggle"
         aria-label="${escapeHtml(habit.name)}を完了にする"
-        aria-checked="${isCompleted}">
-        ${checkHtml}
+        aria-checked="${isCompleted}"
+        ${isRestDay ? 'disabled' : ''}>
+        ${checkBtnContent}
       </button>
     </div>
   `;
@@ -647,30 +661,52 @@ function renderTodayTab() {
 
   emptyEl.classList.add('hidden');
 
-  const todayStr = getDateString();
-  const todayDate = new Date();
-  
+  const viewingDateStr = viewingDate;
+  const viewingDateObj = new Date(viewingDate + 'T00:00:00');
+
+  // 習慣を3種類に分類する
+  // 1. activeHabits    : 曜日設定でこの日が対象で、手動お休みでもない習慣
+  // 2. restDayHabits   : 曜日設定では対象だが、手動でお休みに設定した習慣
+  // 3. excludedHabits  : 曜日設定でこの日が対象外（スケジュール上の休み）
   const activeHabits = [];
-  const skippedHabits = [];
-  
+  const restDayHabits = [];
+  const excludedHabits = [];
+
   habits.forEach(h => {
-    if (isHabitDueOnDate(h, todayDate)) activeHabits.push(h);
-    else skippedHabits.push(h);
+    // 手動お休みの判定（skipsに日付が登録されているか）
+    const isManuallySkipped = h.skips && h.skips[viewingDateStr];
+    // 曜日設定での対象判定（skipsを除いて純粋に曜日のみ確認）
+    const isFrequencyDue = !h.frequency || h.frequency.includes(viewingDateObj.getDay());
+
+    if (!isFrequencyDue) {
+      // 曜日設定で対象外（スケジュールの休み）
+      excludedHabits.push(h);
+    } else if (isManuallySkipped) {
+      // 手動でお休み設定した習慣
+      restDayHabits.push(h);
+    } else {
+      // 通常のアクティブな習慣
+      activeHabits.push(h);
+    }
   });
 
   // アクティブな習慣（完了済みを下へソート）
   activeHabits.sort((a, b) => {
-    const aComp = getHabitProgress(a, todayStr).done;
-    const bComp = getHabitProgress(b, todayStr).done;
+    const aComp = getHabitProgress(a, viewingDateStr).done;
+    const bComp = getHabitProgress(b, viewingDateStr).done;
     return aComp - bComp;
   });
 
-  listEl.innerHTML = activeHabits.map((h, i) => renderHabitCard(h, i)).join('');
+  // メインリスト：アクティブな習慣 + お休み習慣（バッジ付き）
+  listEl.innerHTML = [
+    ...activeHabits.map((h, i) => renderHabitCard(h, i)),
+    ...restDayHabits.map((h, i) => renderHabitCard(h, activeHabits.length + i, false, true)),
+  ].join('');
 
-  // お休みの習慣をレンダリング
-  if (skippedHabits.length > 0 && skippedContainer && skippedListEl) {
+  // 下部セクション：曜日設定で対象外の習慣のみ表示
+  if (excludedHabits.length > 0 && skippedContainer && skippedListEl) {
     skippedContainer.classList.remove('hidden');
-    skippedListEl.innerHTML = skippedHabits.map((h, i) => renderHabitCard(h, i, true)).join('');
+    skippedListEl.innerHTML = excludedHabits.map((h, i) => renderHabitCard(h, i, true)).join('');
   } else if (skippedContainer) {
     skippedContainer.classList.add('hidden');
   }
