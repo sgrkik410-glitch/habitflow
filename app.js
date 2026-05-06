@@ -1315,11 +1315,24 @@ function openEditModal(habitId) {
   const skipBtn = document.getElementById('btn-skip-habit');
   skipRow.classList.remove('hidden');
   
+  // 表示中の日付（viewingDate）に基づいてスキップボタンのラベルを生成する
+  const targetSkipStr = viewingDate || getDateString();
   const todayStr = getDateString();
-  if (habit.skips && habit.skips[todayStr]) {
-    skipBtn.textContent = '🔄 今日のお休みを取り消す';
+  const tomorrowStr = getDateString(new Date(Date.now() + 86400000));
+  let skipDateLabel;
+  if (targetSkipStr === todayStr) {
+    skipDateLabel = '今日';
+  } else if (targetSkipStr === tomorrowStr) {
+    skipDateLabel = '明日';
   } else {
-    skipBtn.textContent = '💤 今日をお休みにする';
+    const d = new Date(targetSkipStr + 'T00:00:00');
+    skipDateLabel = `${d.getMonth() + 1}月${d.getDate()}日`;
+  }
+
+  if (habit.skips && habit.skips[targetSkipStr]) {
+    skipBtn.textContent = `🔄 ${skipDateLabel}のお休みを取り消す`;
+  } else {
+    skipBtn.textContent = `💤 ${skipDateLabel}をお休みにする`;
   }
 
   initIconGrid();
