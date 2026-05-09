@@ -992,6 +992,19 @@ function renderHealthChart() {
     dataWeight.push(m.weight || null);
   });
 
+  // 積算実質カロリー（摂取 - 消費 の期間内累積）を計算する
+  // データのない日は変化なし（累積値を維持）
+  let cumulativeNet = 0;
+  const dataNetCumulative = labels.map(dateStr => {
+    const m = dailyMetrics[dateStr] || {};
+    const intake = Number(m.intake) || 0;
+    const burned = Number(m.burned) || 0;
+    if (intake > 0 || burned > 0) {
+      cumulativeNet += (intake - burned);
+    }
+    return Math.round(cumulativeNet);
+  });
+
   // 日付ラベルを「M/D」形式にする
   const formattedLabels = labels.map(l => {
     const d = new Date(l + 'T00:00:00');
@@ -1054,6 +1067,20 @@ function renderHealthChart() {
           borderWidth,
           fill: false,
         },
+        {
+          label: '実質カロリー積算 (kcal)',
+          data: dataNetCumulative,
+          borderColor: '#c084fc',
+          backgroundColor: 'rgba(192,132,252,0.08)',
+          borderDash: [3, 3], // 点線（体重と区別するため短い点線）
+          yAxisID: 'y-net',
+          spanGaps: false,
+          tension: 0.3,
+          pointRadius: isMonthly ? 1 : 3,
+          pointHoverRadius: isMonthly ? 3 : 5,
+          borderWidth: isMonthly ? 1.5 : 2,
+          fill: true, // 0ラインからの塗りつぶしで正負を視覚化
+        },
       ]
     },
     options: {
@@ -1070,6 +1097,20 @@ function renderHealthChart() {
             usePointStyle: true,
             boxWidth: 8,
             font: { size: 11 },
+          }
+        },
+        tooltip: {
+          callbacks: {
+            // 積算実質カロリーに ± 符号を付けて表示
+            label(context) {
+              const label = context.dataset.label || '';
+              const value = context.parsed.y;
+              if (label.includes('積算') && value !== null) {
+                const sign = value > 0 ? '+' : '';
+                return `${label}: ${sign}${value.toLocaleString()} kcal`;
+              }
+              return `${label}: ${value !== null ? value.toLocaleString() : '-'}`;
+            }
           }
         }
       },
@@ -1106,11 +1147,19 @@ function renderHealthChart() {
             color: '#06b6d4',
             font: { size: 10 }
           }
+        },
+        'y-net': {
+          // 積算実質カロリー専用軸（軸線は非表示・スケーリングのみ使用）
+          type: 'linear',
+          position: 'left',
+          display: false,
+          grid: { drawOnChartArea: false },
         }
       }
     }
   });
 }
+
 
 // ===============================
 // レンダリング - 履歴タブ
