@@ -1,7 +1,7 @@
 // HabitFlow Service Worker v3
 // オフラインキャッシュ + プッシュ通知対応
 
-const CACHE_NAME = 'habitflow-v7';
+const CACHE_NAME = 'habitflow-v8';
 
 // キャッシュするアセット一覧
 const ASSETS_TO_CACHE = [
