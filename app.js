@@ -62,6 +62,9 @@ let heatmapMonth = new Date().getMonth();
 let deferredInstallPrompt = null;
 let healthChart = null; // Chart.jsのインスタンスを保持
 
+// 統計表示期間（7=週間, 30=月間）
+let statsPeriod = 7;
+
 // 表示中の日付（デフォルトは今日）
 let viewingDate = null; 
 
@@ -111,6 +114,19 @@ function isHabitDueOnDate(habit, dateObj) {
 function getLast7Days() {
   const days = [];
   for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    days.push(getDateString(d));
+  }
+  return days;
+}
+
+/**
+ * 過去30日間の日付文字列配列を返す（今日を含む、古い順）
+ */
+function getLast30Days() {
+  const days = [];
+  for (let i = 29; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
     days.push(getDateString(d));
@@ -387,12 +403,37 @@ function getTotalCompletions() {
 }
 
 /**
- * 今週の全習慣の平均達成率を取得する
+ * 指定期間（日数）の全習慣の平均達成率を取得する
+ * @param {number} days - 集計日数（7=週間, 30=月間）
  */
-function getWeeklyCompletionRate() {
+function getPeriodCompletionRate(days) {
   if (habits.length === 0) return 0;
-  const rates = habits.map(h => getCompletionRate(h, 7));
+  const rates = habits.map(h => getCompletionRate(h, days));
   return Math.round(rates.reduce((a, b) => a + b, 0) / rates.length);
+}
+
+/**
+ * 統計の表示期間を切り替えてUIを更新する
+ * @param {number} days - 切り替え先の日数（7 or 30）
+ */
+function switchStatsPeriod(days) {
+  statsPeriod = days;
+
+  // セグメントコントロールのアクティブ状態を更新
+  document.querySelectorAll('.stats-period-btn').forEach(btn => {
+    btn.classList.toggle('active', Number(btn.dataset.period) === days);
+  });
+
+  // 達成率ラベルを更新
+  const label = document.getElementById('stat-completion-label');
+  if (label) label.textContent = days === 7 ? '今週の達成率' : '今月の達成率';
+
+  // グラフ見出しを更新
+  const chartTitle = document.getElementById('health-chart-title');
+  if (chartTitle) chartTitle.textContent = `健康記録推移（過去${days}日間）`;
+
+  // 統計を再描画
+  renderStatsTab();
 }
 
 // ===============================
@@ -763,12 +804,23 @@ function renderTodayTab() {
  * 統計タブをレンダリングする
  */
 function renderStatsTab() {
+  // セグメントコントロールのアクティブ状態を初期化
+  document.querySelectorAll('.stats-period-btn').forEach(btn => {
+    btn.classList.toggle('active', Number(btn.dataset.period) === statsPeriod);
+  });
+
+  // ラベルを現在の期間に合わせて更新
+  const label = document.getElementById('stat-completion-label');
+  if (label) label.textContent = statsPeriod === 7 ? '今週の達成率' : '今月の達成率';
+  const chartTitle = document.getElementById('health-chart-title');
+  if (chartTitle) chartTitle.textContent = `健康記録推移（過去${statsPeriod}日間）`;
+
   // サマリー数値を更新
   const bestStreak = document.getElementById('stat-best-streak');
   const compRate = document.getElementById('stat-completion-rate');
   const totalComp = document.getElementById('stat-total-completions');
   if (bestStreak) bestStreak.textContent = getOverallBestStreak();
-  if (compRate) compRate.textContent = getWeeklyCompletionRate() + '%';
+  if (compRate) compRate.textContent = getPeriodCompletionRate(statsPeriod) + '%';
   if (totalComp) totalComp.textContent = getTotalCompletions();
 
   renderHealthChart();
@@ -791,10 +843,17 @@ function renderHabitStreaks() {
   }
 
   const maxStreak = Math.max(...habits.map(h => getCurrentStreak(h)), 1);
+  const maxRate = Math.max(...habits.map(h => getCompletionRate(h, statsPeriod)), 1);
 
   container.innerHTML = habits.map(h => {
     const streak = getCurrentStreak(h);
-    const barWidth = Math.max((streak / maxStreak) * 100, streak > 0 ? 4 : 0);
+    const rate = getCompletionRate(h, statsPeriod);
+    // 週間はストリーク表示、月間は達成率バー表示で切り替え
+    const barWidth = statsPeriod === 7
+      ? Math.max((streak / maxStreak) * 100, streak > 0 ? 4 : 0)
+      : Math.max((rate / maxRate) * 100, rate > 0 ? 4 : 0);
+    const countValue = statsPeriod === 7 ? streak : rate;
+    const countLabel = statsPeriod === 7 ? '日連続' : '%';
 
     return `
       <div class="streak-item">
@@ -806,8 +865,8 @@ function renderHabitStreaks() {
           </div>
         </div>
         <div class="streak-count">
-          <span class="streak-count-value" style="color: ${h.color}">${streak}</span>
-          <span class="streak-count-label">日連続</span>
+          <span class="streak-count-value" style="color: ${h.color}">${countValue}</span>
+          <span class="streak-count-label">${countLabel}</span>
         </div>
       </div>
     `;
@@ -917,8 +976,8 @@ function renderHealthChart() {
     return;
   }
 
-  // 過去7日間の日付を取得し、古い順に並び替え（グラフ表示用）
-  const labels = getLast7Days();
+  // 統計期間に応じた日付リストを取得（古い順）
+  const labels = statsPeriod === 7 ? getLast7Days() : getLast30Days();
 
   const dataIntake = [];
   const dataBurned = [];

@@ -151,6 +151,11 @@
       <div id="tab-stats" class="tab-pane">
         <div class="page-header">
           <h2 class="header-title">統計</h2>
+          <!-- 期間切り替えセグメントコントロール -->
+          <div class="stats-period-control">
+            <button class="stats-period-btn active" data-period="7" onclick="switchStatsPeriod(7)">週間</button>
+            <button class="stats-period-btn" data-period="30" onclick="switchStatsPeriod(30)">月間</button>
+          </div>
         </div>
         <div class="content-area">
           <!-- サマリーカード -->
@@ -163,7 +168,7 @@
             <div class="stat-card">
               <span class="stat-icon">📊</span>
               <span class="stat-value" id="stat-completion-rate">0%</span>
-              <span class="stat-label">今週の達成率</span>
+              <span class="stat-label" id="stat-completion-label">今週の達成率</span>
             </div>
             <div class="stat-card">
               <span class="stat-icon">✅</span>
@@ -173,7 +178,7 @@
           </div>
 
           <!-- 健康記録推移グラフ -->
-          <h3 class="section-title">健康記録推移（過去7日間）</h3>
+          <h3 class="section-title" id="health-chart-title">健康記録推移（過去7日間）</h3>
           <div class="health-chart-container">
             <canvas id="health-chart"></canvas>
           </div>
