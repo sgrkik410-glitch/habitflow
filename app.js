@@ -965,6 +965,7 @@ function renderHeatmap() {
 
 /**
  * 健康記録推移（カロリー・体重）をグラフで描画する
+ * statsPeriod（7 or 30）に応じてデータ範囲と表示設定を切り替える
  */
 function renderHealthChart() {
   const canvas = document.getElementById('health-chart');
@@ -977,7 +978,8 @@ function renderHealthChart() {
   }
 
   // 統計期間に応じた日付リストを取得（古い順）
-  const labels = statsPeriod === 7 ? getLast7Days() : getLast30Days();
+  const isMonthly = statsPeriod === 30;
+  const labels = isMonthly ? getLast30Days() : getLast7Days();
 
   const dataIntake = [];
   const dataBurned = [];
@@ -992,16 +994,23 @@ function renderHealthChart() {
 
   // 日付ラベルを「M/D」形式にする
   const formattedLabels = labels.map(l => {
-    const d = new Date(l);
+    const d = new Date(l + 'T00:00:00');
     return `${d.getMonth() + 1}/${d.getDate()}`;
   });
 
+  // 月間時はポイントを小さく・線を細くして視認性を確保
+  const pointRadius  = isMonthly ? 2 : 4;
+  const borderWidth  = isMonthly ? 1.5 : 2;
+  // x軸ラベルの最大表示数（月間は約10個に間引く）
+  const maxTicksLimit = isMonthly ? 10 : 7;
+
   if (healthChart) {
     healthChart.destroy();
+    healthChart = null;
   }
 
   healthChart = new Chart(canvas, {
-    type: 'line', // 基本タイプはLine
+    type: 'line',
     data: {
       labels: formattedLabels,
       datasets: [
@@ -1009,36 +1018,47 @@ function renderHealthChart() {
           label: '摂取カロリー (kcal)',
           data: dataIntake,
           borderColor: '#f59e0b',
-          backgroundColor: '#f59e0b',
+          backgroundColor: 'rgba(245,158,11,0.15)',
           yAxisID: 'y-calories',
           spanGaps: true,
-          tension: 0.2
+          tension: 0.3,
+          pointRadius,
+          pointHoverRadius: pointRadius + 2,
+          borderWidth,
+          fill: false,
         },
         {
           label: '消費カロリー (kcal)',
           data: dataBurned,
           borderColor: '#10b981',
-          backgroundColor: '#10b981',
+          backgroundColor: 'rgba(16,185,129,0.15)',
           yAxisID: 'y-calories',
           spanGaps: true,
-          tension: 0.2
+          tension: 0.3,
+          pointRadius,
+          pointHoverRadius: pointRadius + 2,
+          borderWidth,
+          fill: false,
         },
         {
           label: '体重 (kg)',
           data: dataWeight,
           borderColor: '#06b6d4',
-          backgroundColor: '#06b6d4',
+          backgroundColor: 'rgba(6,182,212,0.1)',
           borderDash: [5, 5], // 点線で区別
           yAxisID: 'y-weight',
           spanGaps: true,
-          tension: 0.2
-        }
+          tension: 0.3,
+          pointRadius,
+          pointHoverRadius: pointRadius + 2,
+          borderWidth,
+          fill: false,
+        },
       ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      color: '#9ca3af', // tooltip text color
       interaction: {
         mode: 'index',
         intersect: false,
@@ -1048,28 +1068,26 @@ function renderHealthChart() {
           labels: {
             color: '#d1d5db',
             usePointStyle: true,
-            boxWidth: 8
+            boxWidth: 8,
+            font: { size: 11 },
           }
         }
       },
       scales: {
         x: {
-          grid: {
-            color: 'rgba(255, 255, 255, 0.05)'
-          },
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
           ticks: {
-            color: '#9ca3af'
+            color: '#9ca3af',
+            maxTicksLimit,         // 月間時はラベルを間引く
+            maxRotation: 45,
+            font: { size: isMonthly ? 9 : 11 },
           }
         },
         'y-calories': {
           type: 'linear',
           position: 'left',
-          grid: {
-            color: 'rgba(255, 255, 255, 0.05)'
-          },
-          ticks: {
-            color: '#9ca3af'
-          },
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: { color: '#9ca3af' },
           title: {
             display: true,
             text: 'kcal',
@@ -1080,12 +1098,8 @@ function renderHealthChart() {
         'y-weight': {
           type: 'linear',
           position: 'right',
-          grid: {
-            drawOnChartArea: false // 左右のグリッド線の重なりを防ぐ
-          },
-          ticks: {
-            color: '#06b6d4'
-          },
+          grid: { drawOnChartArea: false },
+          ticks: { color: '#06b6d4' },
           title: {
             display: true,
             text: 'kg',
