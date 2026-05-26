@@ -312,6 +312,56 @@ button {
    =========================== */
 .week-calendar {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 週ナビゲーションバー */
+.week-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+}
+
+.week-nav-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+  min-width: 48px;
+  text-align: center;
+}
+
+.week-nav-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  color: var(--text-secondary);
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  line-height: 1;
+}
+
+.week-nav-btn:not(:disabled):active {
+  background: var(--surface-hover);
+  transform: scale(0.9);
+}
+
+.week-nav-btn.disabled,
+.week-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* 日付行ラッパー */
+.week-days-row {
+  display: flex;
   gap: 4px;
   justify-content: space-between;
 }
@@ -380,6 +430,12 @@ button {
   transform: scale(1.1);
   border-color: var(--accent-light);
   box-shadow: 0 0 10px rgba(167, 139, 250, 0.4);
+}
+
+/* 未来日はクリック不可 */
+.week-day.future {
+  cursor: default;
+  pointer-events: none;
 }
 
 /* ===========================

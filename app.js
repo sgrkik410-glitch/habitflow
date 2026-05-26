@@ -65,6 +65,9 @@ let healthChart = null; // Chart.jsのインスタンスを保持
 // 統計表示期間（7=週間, 30=月間）
 let statsPeriod = 7;
 
+// カレンダーの週オフセット（0=今週, -1=先週, ...）
+let weekOffset = 0;
+
 // 表示中の日付（デフォルトは今日）
 let viewingDate = null; 
 
@@ -132,6 +135,46 @@ function getLast30Days() {
     days.push(getDateString(d));
   }
   return days;
+}
+
+/**
+ * weekOffset週分だけじらした7日間の日付配列を返す（古い順）
+ * @param {number} offset - 0=今週, -1=先週, ...
+ */
+function getWeekDays(offset = 0) {
+  const days = [];
+  // offset=0のときは今日から過去6日（おなじなのが現行の getLast7Days）
+  // offset=-1のときは7～13日前の週を返す
+  const baseShift = -offset * 7; // 正値に変換（offsetは負値）
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i - baseShift);
+    days.push(getDateString(d));
+  }
+  return days;
+}
+
+/**
+ * 週カレンダーを指定週数分移動して再描画する
+ * @param {number} delta - +1=次の週, -1=前の週
+ */
+function changeWeekOffset(delta) {
+  const next = weekOffset + delta;
+  if (next > 0) return; // 未来には行けない
+  weekOffset = next;
+
+  // 移動先の週の最後の日（または今日以前の最新日）をviewingDateに設定
+  const today = getDateString();
+  const days = getWeekDays(weekOffset);
+  if (weekOffset === 0) {
+    viewingDate = today;
+  } else {
+    // 今日より前の日付が対象なので最新日を選択
+    const pastDays = days.filter(d => d <= today);
+    viewingDate = pastDays[pastDays.length - 1] || days[0];
+  }
+
+  renderTodayTab();
 }
 
 /**
@@ -564,21 +607,28 @@ function renderProgress() {
 }
 
 /**
- * 週間ミニカレンダーをレンダリングする
+ * 週間ミニカレンダーをレンダリングする（weekOffsetに応じた週を表示）
  */
 function renderWeekCalendar() {
   const container = document.getElementById('week-calendar');
   if (!container) return;
 
   const today = getDateString();
-  const days = getLast7Days();
+  const days = getWeekDays(weekOffset);
 
-  container.innerHTML = days.map(dateStr => {
+  // ナビゲーションラベル文字
+  const navLabel = weekOffset === 0
+    ? '今週'
+    : `${Math.abs(weekOffset)}週前`;
+  const canGoForward = weekOffset < 0;
+
+  const daysHtml = days.map(dateStr => {
     const date = new Date(dateStr + 'T00:00:00');
     const dayNum = date.getDate();
     const dayLabel = WEEKDAY_SHORT[date.getDay()];
     const isToday = dateStr === today;
     const isSelected = dateStr === viewingDate;
+    const isFuture = dateStr > today;
 
     // その日の完了状況を計算
     const dayActiveHabits = habits.filter(h => isHabitDueOnDate(h, date));
@@ -591,17 +641,32 @@ function renderWeekCalendar() {
     if (isDone) dotClass += ' completed';
     else if (isPartial) dotClass += ' partial';
     if (isToday) dotClass += ' today';
-    
+
     let wrapClass = 'week-day';
     if (isSelected) wrapClass += ' selected';
+    if (isFuture) wrapClass += ' future';
+
+    const clickAttr = isFuture ? '' : `onclick="changeViewingDate('${dateStr}')"`;
 
     return `
-      <div class="${wrapClass}" data-date="${dateStr}" onclick="changeViewingDate('${dateStr}')">
+      <div class="${wrapClass}" data-date="${dateStr}" ${clickAttr}>
         <span class="week-day-label">${dayLabel}</span>
-        <div class="${dotClass}">${dayNum}</div>
+        <div class="${dotClass}" style="${isFuture ? 'opacity:0.3' : ''}">${dayNum}</div>
       </div>
     `;
   }).join('');
+
+  container.innerHTML = `
+    <div class="week-nav">
+      <button class="week-nav-btn" onclick="changeWeekOffset(-1)" aria-label="前の週">‹</button>
+      <span class="week-nav-label">${navLabel}</span>
+      <button class="week-nav-btn ${canGoForward ? '' : 'disabled'}" 
+        onclick="if(${canGoForward}) changeWeekOffset(1)" 
+        aria-label="次の週"
+        ${canGoForward ? '' : 'disabled'}>›</button>
+    </div>
+    <div class="week-days-row">${daysHtml}</div>
+  `;
 }
 
 /**
